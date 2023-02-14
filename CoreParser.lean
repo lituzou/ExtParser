@@ -47,7 +47,7 @@ namespace CoreParser
         have (e_f, e_0, e_s) := g_props e P;
         (e_s || e_0, e_f, false)
 
-  def extendP (vn_1 vn_2 : Fin n) (Pexp : Fin n → PEG n) (P : Fin n → (Bool × Bool × Bool)) : (Bool × Bool × Bool) :=
+  def rho_props (vn_1 vn_2 : Fin n) (Pexp : Fin n → PEG n) (P : Fin n → (Bool × Bool × Bool)) : (Bool × Bool × Bool) :=
     if vn_1 = vn_2 then
       g_props (Pexp vn_2) P
     else
