@@ -18,8 +18,10 @@ namespace CoreParser
       | [] => ε
       | c :: cs => seq (terminal c) (stringPEG cs)
   
+  -- Grammar Production Rule
   abbrev GProd n := Fin n → PEG n
 
+  -- Maybe Type for known and unknown properties
   inductive Maybe (p : α → Prop) (a : α) where
     | found : p a → Maybe p a
     | unknown
@@ -27,6 +29,7 @@ namespace CoreParser
   open Maybe
 
   mutual
+    -- Property of PEG grammar that can be failed
     inductive PropF : GProd n → PEG n → Prop where
       | any : PropF Pexp any
       | terminal : ∀ (c : Char), PropF Pexp (terminal c)
@@ -39,6 +42,7 @@ namespace CoreParser
       | notP_0 : ∀ (e : PEG n), Prop0 Pexp e → PropF Pexp (notP e)
       | notP_S : ∀ (e : PEG n), PropS Pexp e → PropF Pexp (notP e)
 
+    -- Property of PEG grammar that can succeed without consuming input
     inductive Prop0 : GProd n → PEG n → Prop where
       | ε : Prop0 Pexp ε
       | nonTerminal : ∀ (vn : Fin n), Prop0 Pexp (Pexp vn) → Prop0 Pexp (nonTerminal vn) 
@@ -47,7 +51,8 @@ namespace CoreParser
       | prior_F0 : ∀ (e1 e2 : PEG n), PropF Pexp e1 → Prop0 Pexp e2 → Prop0 Pexp (prior e1 e2)
       | star : ∀ (e : PEG n), PropF Pexp e → Prop0 Pexp (star e)
       | notP : ∀ (e : PEG n), PropF Pexp e → Prop0 Pexp (notP e)
-      
+
+    -- Property of PEG grammar that can succeed only by consuming input
     inductive PropS : GProd n → PEG n → Prop where
       | any : PropS Pexp any
       | terminal : ∀ (c : Char), PropS Pexp (terminal c)
@@ -61,9 +66,9 @@ namespace CoreParser
   end
 
   abbrev PropsTriple (Pexp : GProd n) (G : PEG n) := Maybe (PropF Pexp) G × Maybe (Prop0 Pexp) G × Maybe (PropS Pexp) G
+  abbrev PropsTriplePred (Pexp : GProd n) := ∀ (i : Fin n), PropsTriple Pexp (Pexp i) 
 
-
-  def g_props (Pexp : GProd n) (P : (i : Fin n) → PropsTriple Pexp (Pexp i)) : (G : PEG n) → PropsTriple Pexp G
+  def g_props (Pexp : GProd n) (P : PropsTriplePred Pexp) : (G : PEG n) → PropsTriple Pexp G
     | ε => (unknown, unknown, unknown)
     | any => (unknown, unknown, unknown)
     | terminal _ => (unknown, unknown, unknown)
@@ -145,14 +150,14 @@ namespace CoreParser
         unknown
       )
   
-  def g_extend (Pexp : GProd n) (P : (i : Fin n) → PropsTriple Pexp (Pexp i)) (x : Fin n) : (y : Fin n) → PropsTriple Pexp (Pexp y) :=
+  def g_extend (Pexp : GProd n) (P : PropsTriplePred Pexp) (x : Fin n) : PropsTriplePred Pexp :=
     fun y =>
       if x = y then
         g_props Pexp P (Pexp y)
       else
         P y
 
-  def unknownProps (Pexp : GProd n) : (i : Fin n) → PropsTriple Pexp (Pexp i) := fun _ => (unknown, unknown, unknown)
+  def unknownProps (Pexp : GProd n) : PropsTriplePred Pexp := fun _ => (unknown, unknown, unknown)
 
 
 
