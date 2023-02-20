@@ -150,7 +150,7 @@ namespace CoreParser
         unknown
       )
   
-  def g_extend (Pexp : GProd n) (P : PropsTriplePred Pexp) (x : Fin n) : PropsTriplePred Pexp :=
+  def g_extend {Pexp : GProd n} (P : PropsTriplePred Pexp) (x : Fin n) : PropsTriplePred Pexp :=
     fun y =>
       if x = y then
         g_props Pexp P (Pexp y)
@@ -160,5 +160,77 @@ namespace CoreParser
   def unknownProps (Pexp : GProd n) : PropsTriplePred Pexp := fun _ => (unknown, unknown, unknown)
 
 
+  inductive Maybe.le : Maybe p a → Maybe p a → Prop where
+    | lhs_unknown : ∀ {p : α → Prop} {a : α} {mr : Maybe p a}, Maybe.le unknown mr
+    | all_found : ∀ {p : α → Prop} {a : α}, (l r : p a) → Maybe.le (found l) (found r) 
+
+  instance : LE (Maybe p a) where
+    le := Maybe.le
+
+  theorem Maybe.le.refl : ∀ {x : Maybe p a}, x ≤ x := by
+    intro x
+    cases x
+    apply Maybe.le.all_found
+    apply Maybe.le.lhs_unknown
+  
+  theorem Maybe.le.trans : ∀ {x y z : Maybe p a}, x ≤ y → y ≤ z → x ≤ z := by
+    intro x y z hxy hyz
+    cases hxy
+    apply Maybe.le.lhs_unknown
+    cases hyz
+    apply Maybe.le.all_found
+
+  inductive PropsTriple.le : PropsTriple Pexp G → PropsTriple Pexp G → Prop where
+    | mk : ∀ {e1_f e2_f : Maybe (PropF Pexp) G} {e1_0 e2_0 : Maybe (Prop0 Pexp) G} {e1_s e2_s : Maybe (PropS Pexp) G}, 
+            e1_f ≤ e2_f → e1_0 ≤ e2_0 → e1_s ≤ e2_s → 
+            PropsTriple.le (e1_f, e1_0, e1_s) (e2_f, e2_0, e2_s)
+  
+  instance : LE (PropsTriple Pexp G) where
+    le := PropsTriple.le
+  
+  theorem PropsTriple.le.refl : ∀ {x : PropsTriple Pexp G}, x ≤ x := by
+    intro x
+    apply PropsTriple.le.mk <;> apply Maybe.le.refl
+
+  theorem PropsTriple.le.trans : ∀ {x y z : PropsTriple Pexp G}, x ≤ y → y ≤ z → x ≤ z := by
+    intro x y z hxy hyz
+    cases hxy with
+      | mk hxy_f hxy_0 hxy_s => cases hyz with
+        | mk hyz_f hyz_0 hyz_s =>
+          constructor
+          apply Maybe.le.trans hxy_f hyz_f
+          apply Maybe.le.trans hxy_0 hyz_0
+          apply Maybe.le.trans hxy_s hyz_s
+    
+
+  inductive PropsTriplePred.le : PropsTriplePred Pexp → PropsTriplePred Pexp → Prop where
+    | mk : ∀ {Pexp : GProd n} {l r : PropsTriplePred Pexp}, (∀ (i : Fin n), (l i) ≤ (r i)) → 
+            PropsTriplePred.le l r 
+  
+  instance : LE (PropsTriplePred Pexp) where
+    le := PropsTriplePred.le
+  
+  theorem PropsTriplePred.le.refl : ∀ {x : PropsTriplePred Pexp}, x ≤ x := by
+    intro x
+    constructor
+    intro i
+    apply PropsTriple.le.refl
+  
+  theorem PropsTriplePred.le.trans : ∀ {x y z : PropsTriplePred Pexp}, x ≤ y → y ≤ z → x ≤ z := by
+    intro x y z hxy hyz
+    cases hxy with
+      | mk fxy => cases hyz with
+        | mk fyz =>
+          constructor
+          intro i
+          apply PropsTriple.le.trans (fxy i) (fyz i)
+
+  example : ∀ {x : Fin n} {Pexp : GProd n}, (unknownProps Pexp) ≤ (g_extend (unknownProps Pexp) x) := by
+    intro x Pexp
+    constructor
+    intro i
+    constructor <;> apply Maybe.le.lhs_unknown
+  
+  
 
 end CoreParser
