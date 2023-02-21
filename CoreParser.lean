@@ -415,8 +415,6 @@ namespace CoreParser
     | isFalse h => isFalse (Fin.ne_of_val_ne h)
     | isTrue h => isTrue (Fin.eq_of_val_eq h)
   
-  #check Fin
-
   def g_extend {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp) : CoherentPred Pexp :=
     {
       pred := fun b =>  match Fin.decEq a b with
