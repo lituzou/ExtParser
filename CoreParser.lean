@@ -64,14 +64,16 @@ namespace CoreParser
       | prior_FS : ∀ (e1 e2 : PEG n), PropF Pexp e1 → PropS Pexp e2 → PropS Pexp (prior e1 e2)
       | star : ∀ (e : PEG n), PropS Pexp e → PropS Pexp (star e)
   end
-
+  
   abbrev PropsTriple (Pexp : GProd n) (G : PEG n) := Maybe (PropF Pexp) G × Maybe (Prop0 Pexp) G × Maybe (PropS Pexp) G
   abbrev PropsTriplePred (Pexp : GProd n) := ∀ (i : Fin n), PropsTriple Pexp (Pexp i) 
 
-  def g_props (Pexp : GProd n) (P : PropsTriplePred Pexp) : (G : PEG n) → PropsTriple Pexp G
-    | ε => (unknown, unknown, unknown)
-    | any => (unknown, unknown, unknown)
-    | terminal _ => (unknown, unknown, unknown)
+  -- Compute grammar properties in one iteration
+  def g_props {Pexp : GProd n} (G : PEG n) (P : PropsTriplePred Pexp) : PropsTriple Pexp G :=
+    match G with
+    | ε => (unknown, found (Prop0.ε), unknown)
+    | any => (found (PropF.any), unknown, found (PropS.any))
+    | terminal c => (found (PropF.terminal c), unknown, found (PropS.terminal c))
     | nonTerminal vn =>
       have (e_f, e_0, e_s) := P vn
       (
@@ -88,8 +90,8 @@ namespace CoreParser
           | unknown => unknown
       )
     | seq e1 e2 =>
-      have (e1_f, e1_0, e1_s) := g_props Pexp P e1;
-      have (e2_f, e2_0, e2_s) := g_props Pexp P e2;
+      have (e1_f, e1_0, e1_s) := g_props e1 P;
+      have (e2_f, e2_0, e2_s) := g_props e2 P;
       (
         match (e1_f, e1_0, e1_s, e2_f) with
           | (found h, _, _, _) => found (PropF.seq_F e1 e2 h)
@@ -108,8 +110,8 @@ namespace CoreParser
           | _ => unknown
       )
     | prior e1 e2 =>
-      have (e1_f, e1_0, _) := g_props Pexp P e1;
-      have (e2_f, e2_0, _) := g_props Pexp P e2;
+      have (e1_f, e1_0, _) := g_props e1 P;
+      have (e2_f, e2_0, _) := g_props e2 P;
       (
         match (e1_f, e2_f) with
           | (found h1, found h2) => found (PropF.prior e1 e2 h1 h2)
@@ -123,7 +125,7 @@ namespace CoreParser
         unknown
       )
     | star e =>
-      have (e_f, _, e_s) := g_props Pexp P e;
+      have (e_f, _, e_s) := g_props e P;
       (
         unknown
         ,
@@ -136,7 +138,7 @@ namespace CoreParser
           | unknown => unknown
       )
     | notP e =>
-      have (e_f, e_0, e_s) := g_props Pexp P e;
+      have (e_f, e_0, e_s) := g_props e P;
       (
         match (e_0, e_s) with
           | (found h,_) => found (PropF.notP_0 e h)
@@ -149,16 +151,6 @@ namespace CoreParser
         ,
         unknown
       )
-  
-  def g_extend {Pexp : GProd n} (P : PropsTriplePred Pexp) (x : Fin n) : PropsTriplePred Pexp :=
-    fun y =>
-      if x = y then
-        g_props Pexp P (Pexp y)
-      else
-        P y
-
-  def unknownProps (Pexp : GProd n) : PropsTriplePred Pexp := fun _ => (unknown, unknown, unknown)
-
 
   inductive Maybe.le : Maybe p a → Maybe p a → Prop where
     | lhs_unknown : ∀ {p : α → Prop} {a : α} {mr : Maybe p a}, Maybe.le unknown mr
@@ -179,11 +171,13 @@ namespace CoreParser
     apply Maybe.le.lhs_unknown
     cases hyz
     apply Maybe.le.all_found
-
-  inductive PropsTriple.le : PropsTriple Pexp G → PropsTriple Pexp G → Prop where
-    | mk : ∀ {e1_f e2_f : Maybe (PropF Pexp) G} {e1_0 e2_0 : Maybe (Prop0 Pexp) G} {e1_s e2_s : Maybe (PropS Pexp) G}, 
-            e1_f ≤ e2_f → e1_0 ≤ e2_0 → e1_s ≤ e2_s → 
-            PropsTriple.le (e1_f, e1_0, e1_s) (e2_f, e2_0, e2_s)
+  
+  theorem Maybe.le.not_found_to_unknown : ∀ {p : α → Prop} {a : α}, (pa : p a) → ¬ (found pa ≤ unknown) := by
+    intro p a pa h
+    cases h
+  
+  inductive PropsTriple.le (P Q : PropsTriple Pexp G) : Prop where
+    | mk : P.fst ≤ Q.fst → P.snd.fst ≤ Q.snd.fst → P.snd.snd ≤ Q.snd.snd → PropsTriple.le P Q
   
   instance : LE (PropsTriple Pexp G) where
     le := PropsTriple.le
@@ -203,9 +197,8 @@ namespace CoreParser
           apply Maybe.le.trans hxy_s hyz_s
     
 
-  inductive PropsTriplePred.le : PropsTriplePred Pexp → PropsTriplePred Pexp → Prop where
-    | mk : ∀ {Pexp : GProd n} {l r : PropsTriplePred Pexp}, (∀ (i : Fin n), (l i) ≤ (r i)) → 
-            PropsTriplePred.le l r 
+  inductive PropsTriplePred.le {Pexp : GProd n} (P Q : PropsTriplePred Pexp) : Prop where
+    | mk : (∀ (i : Fin n), (P i) ≤ (Q i)) → PropsTriplePred.le P Q
   
   instance : LE (PropsTriplePred Pexp) where
     le := PropsTriplePred.le
@@ -217,20 +210,77 @@ namespace CoreParser
     apply PropsTriple.le.refl
   
   theorem PropsTriplePred.le.trans : ∀ {x y z : PropsTriplePred Pexp}, x ≤ y → y ≤ z → x ≤ z := by
-    intro x y z hxy hyz
-    cases hxy with
-      | mk fxy => cases hyz with
-        | mk fyz =>
-          constructor
-          intro i
-          apply PropsTriple.le.trans (fxy i) (fyz i)
-
-  example : ∀ {x : Fin n} {Pexp : GProd n}, (unknownProps Pexp) ≤ (g_extend (unknownProps Pexp) x) := by
-    intro x Pexp
+    intro x y z (PropsTriplePred.le.mk fxy) (PropsTriplePred.le.mk fyz)
     constructor
     intro i
-    constructor <;> apply Maybe.le.lhs_unknown
+    apply PropsTriple.le.trans (fxy i) (fyz i)
+
+
+  theorem g_props_growth : ∀ {Pexp : GProd n} {G : PEG n} {P Q : PropsTriplePred Pexp}, P ≤ Q → g_props G P ≤ g_props G Q := by
+    intro Pexp G P Q hpq
+    have (PropsTriplePred.le.mk fpq) := hpq
+    cases G with
+      | ε => apply PropsTriple.le.refl
+      | any => apply PropsTriple.le.refl    
+      | terminal c => apply PropsTriple.le.refl
+      | nonTerminal vn =>
+        {
+          cases fpq vn with
+          | mk le_f le_0 le_s =>  
+            {
+              constructor <;> simp [g_props]
+              {
+                -- dependent elimination failed, failed to solve equation
+                -- (P vn).1 = unknown
+                cases le_f
+              }             
+              sorry
+              sorry
+            }
+
+        }
+      | seq e1 e2 => sorry
+      | prior e1 e2 => sorry   
+      | star e => sorry   
+      | notP e => sorry   
   
+
+  -- structure CoherentPred (Pexp : GProd n) where
+  --   pred : PropsTriplePred Pexp
+  --   coherent : ∀ (i : Fin n), pred i ≤ g_props (Pexp i) pred
+  
+  -- instance : LE (CoherentPred Pexp) where
+  --   le := fun P Q => P.pred ≤ Q.pred
+  
+  -- def unknownPred (Pexp : GProd n) : CoherentPred Pexp :=
+  --   {
+  --     pred := fun _ => (unknown, unknown, unknown)
+  --     coherent := by
+  --       intro i
+  --       constructor <;> apply Maybe.le.lhs_unknown
+  --   }
+  
+  -- instance Fin.decEq {n} (a b : Fin n) : Decidable (Eq a b) :=
+  --   match Nat.decEq a.val b.val with
+  --   | isFalse h => isFalse (Fin.ne_of_val_ne h)
+  --   | isTrue h => isTrue (Fin.eq_of_val_eq h)
+
+  -- def g_extend {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp) : CoherentPred Pexp :=
+  --   {
+  --     pred := fun b =>  match Fin.decEq a b with
+  --                       | isFalse h => P.pred b
+  --                       | isTrue rfl => g_props (Pexp a) P.pred
+  --     coherent := by
+  --       intro b; simp
+  --       cases Fin.decEq a b
+  --       {
+  --         sorry
+  --       }
+  --       {
+  --         sorry
+  --       }
+  --   }
+    
   
 
 end CoreParser
