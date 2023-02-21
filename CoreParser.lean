@@ -395,41 +395,42 @@ namespace CoreParser
         }
 
 
-  -- structure CoherentPred (Pexp : GProd n) where
-  --   pred : PropsTriplePred Pexp
-  --   coherent : ∀ (i : Fin n), pred i ≤ g_props (Pexp i) pred
+  structure CoherentPred (Pexp : GProd n) where
+    pred : PropsTriplePred Pexp
+    coherent : ∀ (i : Fin n), pred i ≤ g_props (Pexp i) pred
 
-  -- instance : LE (CoherentPred Pexp) where
-  --   le := fun P Q => P.pred ≤ Q.pred
+  instance : LE (CoherentPred Pexp) where
+    le := fun P Q => P.pred ≤ Q.pred
 
-  -- def unknownPred (Pexp : GProd n) : CoherentPred Pexp :=
-  --   {
-  --     pred := fun _ => (unknown, unknown, unknown)
-  --     coherent := by
-  --       intro i
-  --       constructor <;> apply Maybe.le.lhs_unknown
-  --   }
+  def unknownPred (Pexp : GProd n) : CoherentPred Pexp :=
+    {
+      pred := fun _ => (unknown, unknown, unknown)
+      coherent := by
+        intro i
+        constructor <;> apply Maybe.le.lhs_unknown
+    }
 
-  -- instance Fin.decEq {n} (a b : Fin n) : Decidable (Eq a b) :=
-  --   match Nat.decEq a.val b.val with
-  --   | isFalse h => isFalse (Fin.ne_of_val_ne h)
-  --   | isTrue h => isTrue (Fin.eq_of_val_eq h)
+  instance Fin.decEq {n} (a b : Fin n) : Decidable (Eq a b) :=
+    match Nat.decEq a.val b.val with
+    | isFalse h => isFalse (Fin.ne_of_val_ne h)
+    | isTrue h => isTrue (Fin.eq_of_val_eq h)
 
-  -- def g_extend {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp) : CoherentPred Pexp :=
-  --   {
-  --     pred := fun b =>  match Fin.decEq a b with
-  --                       | isFalse h => P.pred b
-  --                       | isTrue rfl => g_props (Pexp a) P.pred
-  --     coherent := by
-  --       intro b; simp
-  --       cases Fin.decEq a b
-  --       {
-  --         sorry
-  --       }
-  --       {
-  --         sorry
-  --       }
-  --   }
+  def g_extend {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp) : CoherentPred Pexp :=
+    {
+      pred := fun b =>  match Fin.decEq a b with
+                        | isFalse h => P.pred b
+                        | isTrue rfl => g_props (Pexp a) P.pred
+      coherent := by
+        intro i; simp
+        cases Fin.decEq a i
+        {
+          simp; sorry
+
+        }
+        {
+          simp; sorry
+        }
+    }
 
 
 end CoreParser
