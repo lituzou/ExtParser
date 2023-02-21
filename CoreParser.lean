@@ -414,6 +414,8 @@ namespace CoreParser
     match Nat.decEq a.val b.val with
     | isFalse h => isFalse (Fin.ne_of_val_ne h)
     | isTrue h => isTrue (Fin.eq_of_val_eq h)
+  
+  #check Fin
 
   def g_extend {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp) : CoherentPred Pexp :=
     {
@@ -422,15 +424,20 @@ namespace CoreParser
                         | isTrue rfl => g_props (Pexp a) P.pred
       coherent := by
         intro i; simp
-        cases Fin.decEq a i
-        {
-          simp; sorry
-
-        }
-        {
-          simp; sorry
-        }
+        cases Fin.decEq a i with
+        | isFalse _ =>
+          simp; apply PropsTriple.le.trans (P.coherent i);
+          apply g_props_growth;
+          constructor; intro b;
+          cases Fin.decEq a b with
+          | isFalse _ => simp; apply PropsTriple.le.refl
+          | isTrue g => cases g; simp; apply P.coherent
+        | isTrue h =>
+          cases h; simp; apply g_props_growth;
+          constructor; intro b;
+          cases Fin.decEq a b with
+          | isFalse _ => simp; apply PropsTriple.le.refl
+          | isTrue g => cases g; simp; apply P.coherent
     }
-
 
 end CoreParser
