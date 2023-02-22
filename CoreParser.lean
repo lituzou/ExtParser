@@ -597,21 +597,10 @@ theorem g_props_growth_notP : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} 
   
   theorem Fixpoint.recompute_le_self : ∀ {Pexp : GProd n} (a : Fin n) (P : Fixpoint Pexp), recompute_props a P.coherent_pred ≤ P.coherent_pred := by
     intro Pexp a P;
-    match Nat.decEq a.val 0 with
-    | isFalse h => 
-      {
-        match exists_pred a h with
-        | ⟨b,⟨hne,hab⟩⟩ =>
-          have _ : b.val < a.val := by simp [hab, inbound_succ]; apply Nat.lt_succ_self; -- termination check
-          rw [hab]; 
-          apply PropsTriplePred.le.trans (recompute_lemma3 b P.coherent_pred hne); 
-          apply Fixpoint.recompute_le_self;
-      }
-    | isTrue h =>
-      cases a; cases h;
-      rw [P.isFixed];
-      apply PropsTriplePred.le.refl;
-  termination_by Fixpoint.recompute_le_self a P => a.val
+    have helper : (recompute_props a P.coherent_pred ≤ P.coherent_pred) = (recompute_props a P.coherent_pred ≤ recompute_props (Fin.mk 0 Pexp.pos_n) P.coherent_pred) := by
+      rw [P.isFixed]
+    rw [helper];
+    apply recompute_le_recompute_zero;
 
   theorem Fixpoint.no_growth : ∀ {Pexp : GProd n} (a : Fin n) (P : Fixpoint Pexp), P.coherent_pred = g_extend a P.coherent_pred := by
     intro Pexp a P;
