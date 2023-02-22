@@ -554,6 +554,13 @@ theorem g_props_growth_notP : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} 
     }
   termination_by recompute_lemma2 a P Q hpq => n - a.val
 
+  theorem exists_pred : ∀ (a : Fin n), (pos_a : ¬(a.val = 0)) → ∃ b hne, a = inbound_succ b hne := by
+    intro a pos_a
+    cases a with
+    | mk a_val a_lt => cases a_val with
+      | zero => contradiction
+      | succ b_val => exists Fin.mk b_val (Nat.lt_of_succ_lt a_lt); exists Nat.ne_of_lt a_lt
+
   theorem recompute_lemma3 : ∀ {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp), (hne : ¬(a.val.succ = n)) → recompute_props (inbound_succ a hne) P ≤ recompute_props a P := by
     intro Pexp a P hne
     have h : recompute_props a P = recompute_props (inbound_succ a hne) (g_extend a P) := by
@@ -565,19 +572,28 @@ theorem g_props_growth_notP : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} 
     apply recompute_lemma2
     apply g_extend_growth1
   
+  theorem recompute_le_recompute_zero : ∀ {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp), recompute_props a P ≤ recompute_props (Fin.mk 0 Pexp.pos_n) P := by
+    intro Pexp a P;
+    match Nat.decEq a.val 0 with
+    | isTrue h =>
+      have g : a = (Fin.mk 0 Pexp.pos_n) := Fin.eq_of_val_eq h;
+      rw [g];
+      apply PropsTriplePred.le.refl;
+    | isFalse h =>
+      match exists_pred a h with
+      | ⟨b,⟨hne,hab⟩⟩ =>
+        have _ : b.val < a.val := by simp [hab, inbound_succ]; apply Nat.lt_succ_self; -- termination check
+        rw [hab];
+        apply PropsTriplePred.le.trans (recompute_lemma3 b P hne);
+        apply recompute_le_recompute_zero;
+  termination_by recompute_le_recompute_zero a P => a.val
+  
   structure Fixpoint (Pexp : GProd n) where
     coherent_pred : CoherentPred Pexp
     isFixed : recompute_props (Fin.mk 0 Pexp.pos_n) coherent_pred = coherent_pred
   
   instance : LE (Fixpoint Pexp) where
     le := fun P Q => P.coherent_pred ≤ Q.coherent_pred
-  
-  theorem exists_pred : ∀ (a : Fin n), (pos_a : ¬(a.val = 0)) → ∃ b hne, a = inbound_succ b hne := by
-    intro a pos_a
-    cases a with
-    | mk a_val a_lt => cases a_val with
-      | zero => contradiction
-      | succ b_val => exists Fin.mk b_val (Nat.lt_of_succ_lt a_lt); exists Nat.ne_of_lt a_lt
   
   theorem Fixpoint.recompute_le_self : ∀ {Pexp : GProd n} (a : Fin n) (P : Fixpoint Pexp), recompute_props a P.coherent_pred ≤ P.coherent_pred := by
     intro Pexp a P;
@@ -605,21 +621,17 @@ theorem g_props_growth_notP : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} 
       apply g_extend_growth1;
     }
     {
-      cases Nat.decEq a.val.succ n with
-      | isTrue h =>
-        {
-          have g : g_extend a P.coherent_pred = recompute_props a P.coherent_pred := by
-            rw [recompute_props];
-            cases Nat.decEq a.val.succ n with
-            | isTrue h => simp
-            | isFalse h => contradiction
-          rw [g];
-          apply Fixpoint.recompute_le_self;
-        }
-      | isFalse h => 
-        {
-          sorry
-        }
+      have g_extend_le_recompute : g_extend a P.coherent_pred ≤ recompute_props a P.coherent_pred := by 
+        rw [recompute_props];
+        cases Nat.decEq a.val.succ n with
+        | isTrue h => simp [h]; apply PropsTriplePred.le.refl
+        | isFalse h => 
+          simp; apply recompute_lemma1;
+      apply PropsTriplePred.le.trans g_extend_le_recompute;
+      apply PropsTriplePred.le.trans;
+      apply recompute_le_recompute_zero a;
+      rw [P.isFixed];
+      apply PropsTriplePred.le.refl;
     }
     
 
