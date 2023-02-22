@@ -193,6 +193,10 @@ namespace CoreParser
       | Or.inl g => simp [g]; exact Maybe.le.lhs_unknown;
       | Or.inr ⟨x',⟨y', ⟨fx, fy⟩⟩⟩ => simp [fx, fy]; exact Maybe.le.all_found x' y'
     }
+  
+  theorem Maybe.eq_of_le_le : ∀ {p : α → Prop} {a : α} {x y : Maybe p a}, x ≤ y → y ≤ x → x = y := by
+    intro p a x y hxy hyx
+    cases hxy <;> cases hyx <;> rfl
 
   inductive PropsTriple.le (P Q : PropsTriple Pexp G) : Prop where
     | mk : P.fst ≤ Q.fst → P.snd.fst ≤ Q.snd.fst → P.snd.snd ≤ Q.snd.snd → PropsTriple.le P Q
@@ -213,6 +217,16 @@ namespace CoreParser
           apply Maybe.le.trans hxy_f hyz_f
           apply Maybe.le.trans hxy_0 hyz_0
           apply Maybe.le.trans hxy_s hyz_s
+  
+  theorem PropsTriple.eq_of_le_le : ∀ {x y : PropsTriple Pexp G}, x ≤ y → y ≤ x → x = y := by
+    intro x y hxy hyx;
+    match x with
+    | (x1, x2, x3) => match y with
+      | (y1, y2, y3) => 
+        cases hxy <;> cases hyx <;> simp_all;
+        apply And.intro; apply Maybe.eq_of_le_le; trivial; trivial;
+        apply And.intro; apply Maybe.eq_of_le_le; trivial; trivial;
+        apply Maybe.eq_of_le_le; trivial; trivial;
 
 
   inductive PropsTriplePred.le {Pexp : GProd n} (P Q : PropsTriplePred Pexp) : Prop where
@@ -232,79 +246,89 @@ namespace CoreParser
     constructor
     intro i
     apply PropsTriple.le.trans (fxy i) (fyz i)
+  
+  theorem PropsTriplePred.eq_of_le_le : ∀ {x y : PropsTriplePred Pexp}, x ≤ y → y ≤ x → x = y := by
+    intro x y hxy hyx;
+    apply funext;
+    intro i;
+    cases hxy with
+    | mk fxy =>
+      cases hyx with
+      | mk fyx => apply PropsTriple.eq_of_le_le (fxy i) (fyx i);
+  
 
-theorem g_props_growth_seq : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} {e1 e2 : PEG n}, g_props e1 P ≤ g_props e1 Q → g_props e2 P ≤ g_props e2 Q → g_props (.seq e1 e2) P ≤ g_props (.seq e1 e2) Q := by
-          intros Pexp P Q e1 e2 e1_growth e2_growth
-          cases e1_growth with
-          | mk le1_f le1_0 le1_s => cases e2_growth with
-            | mk le2_f le2_0 le2_s =>
-              {
-                constructor <;> simp [g_props]
+  theorem g_props_growth_seq : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} {e1 e2 : PEG n}, g_props e1 P ≤ g_props e1 Q → g_props e2 P ≤ g_props e2 Q → g_props (.seq e1 e2) P ≤ g_props (.seq e1 e2) Q := by
+            intros Pexp P Q e1 e2 e1_growth e2_growth
+            cases e1_growth with
+            | mk le1_f le1_0 le1_s => cases e2_growth with
+              | mk le2_f le2_0 le2_s =>
                 {
-                  match (Maybe.le.equiv_to_imply.mp le1_f) with
-                  | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le2_f) with
-                    | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
-                    | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le1_0) with
-                      | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le1_s) with
-                        | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
-                        | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e1 Q).fst <;> cases (g_props e1 Q).snd.fst <;> simp <;> apply Maybe.le.all_found
-                      | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e1 Q).fst <;> simp <;> apply Maybe.le.all_found
-                  | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
-                }
-                {
-                  match (Maybe.le.equiv_to_imply.mp le1_0) with
-                  | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
-                  | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le2_0) with
-                    | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+                  constructor <;> simp [g_props]
+                  {
+                    match (Maybe.le.equiv_to_imply.mp le1_f) with
+                    | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le2_f) with
+                      | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+                      | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le1_0) with
+                        | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le1_s) with
+                          | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+                          | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e1 Q).fst <;> cases (g_props e1 Q).snd.fst <;> simp <;> apply Maybe.le.all_found
+                        | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e1 Q).fst <;> simp <;> apply Maybe.le.all_found
                     | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
-                }
-                {
-                  match (Maybe.le.equiv_to_imply.mp le1_0) with
-                  | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le1_s) with
+                  }
+                  {
+                    match (Maybe.le.equiv_to_imply.mp le1_0) with
                     | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
                     | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le2_0) with
-                      | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le2_s) with
-                        | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
-                        | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e1 Q).snd.fst <;> cases (g_props e2 Q).snd.fst <;> simp <;> apply Maybe.le.all_found
+                      | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
                       | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
-                  | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le1_s) with
-                    | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le2_0) with
-                      | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le2_s) with
-                        | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
-                        | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e1 Q).snd.snd <;> cases (g_props e2 Q).snd.fst <;> simp <;> apply Maybe.le.all_found
-                      | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le2_s) with
-                        | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
-                        | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e1 Q).snd.snd <;> simp <;> apply Maybe.le.all_found
-                    | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le2_0) with
-                      | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le2_s) with
-                        | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
-                        | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e2 Q).snd.fst <;> simp <;> apply Maybe.le.all_found
-                      | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
+                  }
+                  {
+                    match (Maybe.le.equiv_to_imply.mp le1_0) with
+                    | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le1_s) with
+                      | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+                      | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le2_0) with
+                        | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le2_s) with
+                          | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+                          | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e1 Q).snd.fst <;> cases (g_props e2 Q).snd.fst <;> simp <;> apply Maybe.le.all_found
+                        | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
+                    | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le1_s) with
+                      | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le2_0) with
+                        | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le2_s) with
+                          | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+                          | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e1 Q).snd.snd <;> cases (g_props e2 Q).snd.fst <;> simp <;> apply Maybe.le.all_found
+                        | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le2_s) with
+                          | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+                          | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e1 Q).snd.snd <;> simp <;> apply Maybe.le.all_found
+                      | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; match (Maybe.le.equiv_to_imply.mp le2_0) with
+                        | Or.inl h => simp [h]; match (Maybe.le.equiv_to_imply.mp le2_s) with
+                          | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+                          | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; cases (g_props e2 Q).snd.fst <;> simp <;> apply Maybe.le.all_found
+                        | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
+                  }
                 }
-              }
-theorem g_props_growth_nonterminal : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} {vn} , P ≤ Q → g_props (.nonTerminal vn) P ≤ g_props (.nonTerminal vn) Q := by
-    intros Pexp P Q vn hpq
-    have (PropsTriplePred.le.mk fpq) := hpq
-    cases fpq vn with
-    | mk le_f le_0 le_s =>
-      {
-        constructor <;> simp [g_props]
+  theorem g_props_growth_nonterminal : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} {vn} , P ≤ Q → g_props (.nonTerminal vn) P ≤ g_props (.nonTerminal vn) Q := by
+      intros Pexp P Q vn hpq
+      have (PropsTriplePred.le.mk fpq) := hpq
+      cases fpq vn with
+      | mk le_f le_0 le_s =>
         {
-          match (Maybe.le.equiv_to_imply.mp le_f) with
-          | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
-          | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
+          constructor <;> simp [g_props]
+          {
+            match (Maybe.le.equiv_to_imply.mp le_f) with
+            | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+            | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
+          }
+          {
+            match (Maybe.le.equiv_to_imply.mp le_0) with
+            | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+            | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
+          }
+          {
+            match (Maybe.le.equiv_to_imply.mp le_s) with
+            | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
+            | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
+          }
         }
-        {
-          match (Maybe.le.equiv_to_imply.mp le_0) with
-          | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
-          | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
-        }
-        {
-          match (Maybe.le.equiv_to_imply.mp le_s) with
-          | Or.inl h => simp [h]; apply Maybe.le.lhs_unknown
-          | Or.inr ⟨x',⟨y',⟨hx', hy'⟩⟩⟩ => simp [hx', hy']; apply Maybe.le.all_found
-        }
-      }
 
  theorem g_props_growth_prior : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} {e1 e2 : PEG n}, g_props e1 P ≤ g_props e1 Q → g_props e2 P ≤ g_props e2 Q  → g_props (.prior e1 e2) P ≤ g_props (.prior e1 e2) Q := by
           intros Pexp P Q e1 e2 e1_growth e2_growth
@@ -416,6 +440,13 @@ theorem g_props_growth_notP : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} 
 
   instance : LE (CoherentPred Pexp) where
     le := fun P Q => P.pred ≤ Q.pred
+  
+  theorem CoherentPred.eq_of_le_le : ∀ {x y : CoherentPred Pexp}, x ≤ y → y ≤ x → x = y := by
+    intro x y hxy hyx
+    cases x with
+    | mk xp xc => cases y with
+      | mk yp yc =>
+        cases hxy; cases hyx; simp_all; apply PropsTriplePred.eq_of_le_le <;> constructor <;> trivial;
 
   def unknownPred (Pexp : GProd n) : CoherentPred Pexp :=
     {
@@ -536,12 +567,60 @@ theorem g_props_growth_notP : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} 
   
   structure Fixpoint (Pexp : GProd n) where
     coherent_pred : CoherentPred Pexp
-    isFixed : recompute_props (Fin.ofNat' 0 Pexp.pos_n) coherent_pred = coherent_pred
+    isFixed : recompute_props (Fin.mk 0 Pexp.pos_n) coherent_pred = coherent_pred
   
   instance : LE (Fixpoint Pexp) where
     le := fun P Q => P.coherent_pred ≤ Q.coherent_pred
   
-  -- theorem Fixpoint.recompute_le_self : ∀ {Pexp : GProd n} (a : Fin n) (P : Fixpoint Pexp), recompute_props a P.coherent_pred ≤ P.coherent_pred := by
-  --   intro Pexp a P
+  theorem exists_pred : ∀ (a : Fin n), (pos_a : ¬(a.val = 0)) → ∃ b hne, a = inbound_succ b hne := by
+    intro a pos_a
+    cases a with
+    | mk a_val a_lt => cases a_val with
+      | zero => contradiction
+      | succ b_val => exists Fin.mk b_val (Nat.lt_of_succ_lt a_lt); exists Nat.ne_of_lt a_lt
+  
+  theorem Fixpoint.recompute_le_self : ∀ {Pexp : GProd n} (a : Fin n) (P : Fixpoint Pexp), recompute_props a P.coherent_pred ≤ P.coherent_pred := by
+    intro Pexp a P;
+    match Nat.decEq a.val 0 with
+    | isFalse h => 
+      {
+        match exists_pred a h with
+        | ⟨b,⟨hne,hab⟩⟩ =>
+          have _ : b.val < a.val := by simp [hab, inbound_succ]; apply Nat.lt_succ_self; -- termination check
+          rw [hab]; 
+          apply PropsTriplePred.le.trans (recompute_lemma3 b P.coherent_pred hne); 
+          apply Fixpoint.recompute_le_self;
+      }
+    | isTrue h =>
+      cases a; cases h;
+      rw [P.isFixed];
+      apply PropsTriplePred.le.refl;
+  termination_by Fixpoint.recompute_le_self a P => a.val
+
+  theorem Fixpoint.no_growth : ∀ {Pexp : GProd n} (a : Fin n) (P : Fixpoint Pexp), P.coherent_pred = g_extend a P.coherent_pred := by
+    intro Pexp a P;
+    simp;
+    apply CoherentPred.eq_of_le_le;
+    {
+      apply g_extend_growth1;
+    }
+    {
+      cases Nat.decEq a.val.succ n with
+      | isTrue h =>
+        {
+          have g : g_extend a P.coherent_pred = recompute_props a P.coherent_pred := by
+            rw [recompute_props];
+            cases Nat.decEq a.val.succ n with
+            | isTrue h => simp
+            | isFalse h => contradiction
+          rw [g];
+          apply Fixpoint.recompute_le_self;
+        }
+      | isFalse h => 
+        {
+          sorry
+        }
+    }
     
+
 end CoreParser
