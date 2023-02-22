@@ -19,7 +19,9 @@ namespace CoreParser
       | c :: cs => seq (terminal c) (stringPEG cs)
 
   -- Grammar Production Rule
-  abbrev GProd n := Fin n → PEG n
+  structure GProd (n : Nat) where
+    pos_n : n > 0
+    f : Fin n → PEG n 
 
   -- Maybe Type for known and unknown properties
   inductive Maybe (p : α → Prop) (a : α) where
@@ -33,7 +35,7 @@ namespace CoreParser
     inductive PropF : GProd n → PEG n → Prop where
       | any : PropF Pexp any
       | terminal : ∀ (c : Char), PropF Pexp (terminal c)
-      | nonTerminal : ∀ (vn : Fin n), PropF Pexp (Pexp vn) → PropF Pexp (nonTerminal vn)
+      | nonTerminal : ∀ (vn : Fin n), PropF Pexp (Pexp.f vn) → PropF Pexp (nonTerminal vn)
       | seq_F : ∀ (e1 e2 : PEG n), PropF Pexp e1 → PropF Pexp (seq e1 e2)
       | seq_0F : ∀ (e1 e2 : PEG n), Prop0 Pexp e1 → PropF Pexp e2 → PropF Pexp (seq e1 e2)
       | seq_SF : ∀ (e1 e2 : PEG n), PropS Pexp e1 → PropF Pexp e2 → PropF Pexp (seq e1 e2)
@@ -45,7 +47,7 @@ namespace CoreParser
     -- Property of PEG grammar that can succeed without consuming input
     inductive Prop0 : GProd n → PEG n → Prop where
       | ε : Prop0 Pexp ε
-      | nonTerminal : ∀ (vn : Fin n), Prop0 Pexp (Pexp vn) → Prop0 Pexp (nonTerminal vn)
+      | nonTerminal : ∀ (vn : Fin n), Prop0 Pexp (Pexp.f vn) → Prop0 Pexp (nonTerminal vn)
       | seq : ∀ (e1 e2 : PEG n), Prop0 Pexp e1 → Prop0 Pexp e2 → Prop0 Pexp (seq e1 e2)
       | prior_0 : ∀ (e1 e2 : PEG n), Prop0 Pexp e1 → Prop0 Pexp (prior e1 e2)
       | prior_F0 : ∀ (e1 e2 : PEG n), PropF Pexp e1 → Prop0 Pexp e2 → Prop0 Pexp (prior e1 e2)
@@ -56,7 +58,7 @@ namespace CoreParser
     inductive PropS : GProd n → PEG n → Prop where
       | any : PropS Pexp any
       | terminal : ∀ (c : Char), PropS Pexp (terminal c)
-      | nonTerminal : ∀ (vn : Fin n), PropS Pexp (Pexp vn) → PropS Pexp (nonTerminal vn)
+      | nonTerminal : ∀ (vn : Fin n), PropS Pexp (Pexp.f vn) → PropS Pexp (nonTerminal vn)
       | seq_S0 : ∀ (e1 e2 : PEG n), PropS Pexp e1 → Prop0 Pexp e2 → PropS Pexp (seq e1 e2)
       | seq_0S : ∀ (e1 e2 : PEG n), Prop0 Pexp e1 → PropS Pexp e2 → PropS Pexp (seq e1 e2)
       | seq_SS : ∀ (e1 e2 : PEG n), PropS Pexp e1 → PropS Pexp e2 → PropS Pexp (seq e1 e2)
@@ -66,7 +68,7 @@ namespace CoreParser
   end
 
   abbrev PropsTriple (Pexp : GProd n) (G : PEG n) := Maybe (PropF Pexp) G × Maybe (Prop0 Pexp) G × Maybe (PropS Pexp) G
-  abbrev PropsTriplePred (Pexp : GProd n) := ∀ (i : Fin n), PropsTriple Pexp (Pexp i)
+  abbrev PropsTriplePred (Pexp : GProd n) := ∀ (i : Fin n), PropsTriple Pexp (Pexp.f i)
 
   -- Compute grammar properties in one iteration
   def g_props {Pexp : GProd n} (G : PEG n) (P : PropsTriplePred Pexp) : PropsTriple Pexp G :=
@@ -397,7 +399,7 @@ namespace CoreParser
 
   structure CoherentPred (Pexp : GProd n) where
     pred : PropsTriplePred Pexp
-    coherent : ∀ (i : Fin n), pred i ≤ g_props (Pexp i) pred
+    coherent : ∀ (i : Fin n), pred i ≤ g_props (Pexp.f i) pred
 
   instance : LE (CoherentPred Pexp) where
     le := fun P Q => P.pred ≤ Q.pred
@@ -419,7 +421,7 @@ namespace CoreParser
     {
       pred := fun b =>  match Fin.decEq a b with
                         | isFalse h => P.pred b
-                        | isTrue rfl => g_props (Pexp a) P.pred
+                        | isTrue rfl => g_props (Pexp.f a) P.pred
       coherent := by
         intro i; simp
         cases Fin.decEq a i with
@@ -437,5 +439,96 @@ namespace CoreParser
           | isFalse _ => simp; apply PropsTriple.le.refl
           | isTrue g => cases g; simp; apply P.coherent
     }
+  
+  theorem g_extend_growth1 : ∀ {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp), P ≤ g_extend a P := by
+    intro Pexp a P
+    simp [g_extend]; constructor; simp;
+    intro b; 
+    cases Fin.decEq a b with
+    | isFalse _ => simp; apply PropsTriple.le.refl
+    | isTrue h => cases h; simp; apply P.coherent
+  
+  theorem g_extend_growth2 : ∀ {Pexp : GProd n} (a : Fin n) (P Q : CoherentPred Pexp), P ≤ Q → g_extend a P ≤ g_extend a Q := by
+    intro Pexp a P Q
+    intro hpq; constructor; simp [g_extend, *]
+    intro b;
+    cases Fin.decEq a b with
+    | isFalse _ => simp; cases hpq with
+      | mk fpq => exact fpq b
+    | isTrue h => cases h; simp; apply g_props_growth hpq
 
+  def inbound_succ (a : Fin n) (hne : a.val.succ ≠ n) : Fin n :=
+    have lt : a.val < n := a.isLt
+    have lts : a.val.succ < n := by
+      cases n with
+      | zero => apply a.elim0
+      | succ m =>
+        {
+          have succ_a_le_n : a.val.succ ≤ m.succ := by
+            apply Nat.succ_le_succ;
+            apply Nat.le_of_lt_succ;
+            exact lt;
+          exact Nat.lt_of_le_of_ne succ_a_le_n hne
+        }
+    {val := a.val.succ, isLt := lts}
+  
+  def recompute_props {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp) : CoherentPred Pexp :=
+    match Nat.decEq a.val.succ n with
+    | isTrue _ => g_extend a P
+    | isFalse hne =>
+      have _ : n - a.val.succ < n - a.val := Nat.sub_succ_lt_self n a.val a.isLt; -- prove termination
+      recompute_props (inbound_succ a hne) (g_extend a P)
+  termination_by recompute_props a P => n - a.val
+
+  theorem recompute_lemma1 : ∀ {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp), P ≤ recompute_props a P := by
+    intro Pexp a P
+    rw [recompute_props]
+    cases Nat.decEq a.val.succ n
+    {
+      simp; 
+      have _ : n - a.val.succ < n - a.val := Nat.sub_succ_lt_self n a.val a.isLt;
+      apply PropsTriplePred.le.trans (g_extend_growth1 a P);
+      apply recompute_lemma1
+    }
+    {
+      simp; apply g_extend_growth1
+    }
+  termination_by recompute_lemma1 a P => n - a.val
+
+  theorem recompute_lemma2 : ∀ {Pexp : GProd n} (a : Fin n) (P Q : CoherentPred Pexp), P ≤ Q → recompute_props a P ≤ recompute_props a Q := by
+    intro Pexp a P Q hpq
+    rw [recompute_props, recompute_props]
+    cases Nat.decEq a.val.succ n
+    {
+      simp;
+      have _ : n - a.val.succ < n - a.val := Nat.sub_succ_lt_self n a.val a.isLt;
+      apply recompute_lemma2;
+      apply g_extend_growth2 a P Q hpq;
+    }
+    {
+      simp; apply g_extend_growth2 a P Q hpq
+    }
+  termination_by recompute_lemma2 a P Q hpq => n - a.val
+
+  theorem recompute_lemma3 : ∀ {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp), (hne : ¬(a.val.succ = n)) → recompute_props (inbound_succ a hne) P ≤ recompute_props a P := by
+    intro Pexp a P hne
+    have h : recompute_props a P = recompute_props (inbound_succ a hne) (g_extend a P) := by
+      rw [recompute_props]
+      cases Nat.decEq a.val.succ n
+      simp
+      contradiction
+    rw [h]
+    apply recompute_lemma2
+    apply g_extend_growth1
+  
+  structure Fixpoint (Pexp : GProd n) where
+    coherent_pred : CoherentPred Pexp
+    isFixed : recompute_props (Fin.ofNat' 0 Pexp.pos_n) coherent_pred = coherent_pred
+  
+  instance : LE (Fixpoint Pexp) where
+    le := fun P Q => P.coherent_pred ≤ Q.coherent_pred
+  
+  -- theorem Fixpoint.recompute_le_self : ∀ {Pexp : GProd n} (a : Fin n) (P : Fixpoint Pexp), recompute_props a P.coherent_pred ≤ P.coherent_pred := by
+  --   intro Pexp a P
+    
 end CoreParser
