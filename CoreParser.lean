@@ -20,7 +20,7 @@ namespace CoreParser
 
   -- Grammar Production Rule
   structure GProd (n : Nat) where
-    pos_n : n > 0
+    pos_n : 0 < n
     f : Fin n → PEG n 
 
   -- Maybe Type for known and unknown properties
@@ -503,19 +503,33 @@ namespace CoreParser
     | isTrue h => cases h; simp; apply g_props_growth hpq
 
   def inbound_succ (a : Fin n) (hne : a.val.succ ≠ n) : Fin n :=
-    have lt : a.val < n := a.isLt
-    have lts : a.val.succ < n := by
-      cases n with
-      | zero => apply a.elim0
-      | succ m =>
-        {
-          have succ_a_le_n : a.val.succ ≤ m.succ := by
-            apply Nat.succ_le_succ;
-            apply Nat.le_of_lt_succ;
-            exact lt;
-          exact Nat.lt_of_le_of_ne succ_a_le_n hne
-        }
-    {val := a.val.succ, isLt := lts}
+    {val := a.val.succ, isLt := Nat.lt_of_le_of_ne (Nat.lt_of_succ_le a.isLt) hne}
+  
+  def inbound_pred (a : Fin n) (hne : a.val ≠ 0) : Fin n :=
+    {val := a.val.pred, isLt := Nat.lt_trans (Nat.pred_lt hne) (a.isLt)}
+  
+  def inbound_pred_succ (a : Fin n) (hne : a.val.succ ≠ n) : Fin n :=
+    have h : (inbound_succ a hne).val ≠ 0 := by rw [inbound_succ]; simp;
+    inbound_pred (inbound_succ a hne) h
+  
+  def inbound_succ_pred (a : Fin n) (hne : a.val ≠ 0) : Fin n :=
+    have h : (inbound_pred a hne).val.succ ≠ n := by rw [inbound_pred]; simp; rw [Nat.succ_pred hne]; apply Nat.ne_of_lt; apply a.isLt;
+    inbound_succ (inbound_pred a hne) h
+  
+  theorem inbound_pred_succ_eq : ∀ (a : Fin n) (hne : a.val.succ ≠ n), a = inbound_pred_succ a hne := by
+    intro a hne;
+    apply Fin.eq_of_val_eq;
+    rw [inbound_pred_succ]; simp;
+    rw [inbound_pred]; simp;
+    rw [inbound_succ]; simp;
+
+  theorem inbound_succ_pred_eq : ∀ (a : Fin n) (hne : a.val ≠ 0), a = inbound_succ_pred a hne := by
+    intro a hne;
+    apply Fin.eq_of_val_eq;
+    rw [inbound_succ_pred]; simp;
+    rw [inbound_succ]; simp;
+    rw [inbound_pred]; simp;
+    rw [Nat.succ_pred hne];
   
   def recompute_props {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp) : CoherentPred Pexp :=
     match Nat.decEq a.val.succ n with
@@ -555,13 +569,6 @@ namespace CoreParser
     }
   termination_by recompute_lemma2 a P Q hpq => n - a.val
 
-  theorem exists_pred : ∀ (a : Fin n), (pos_a : ¬(a.val = 0)) → ∃ b hne, a = inbound_succ b hne := by
-    intro a pos_a
-    cases a with
-    | mk a_val a_lt => cases a_val with
-      | zero => contradiction
-      | succ b_val => exists Fin.mk b_val (Nat.lt_of_succ_lt a_lt); exists Nat.ne_of_lt a_lt
-
   theorem recompute_lemma3 : ∀ {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp), (hne : ¬(a.val.succ = n)) → recompute_props (inbound_succ a hne) P ≤ recompute_props a P := by
     intro Pexp a P hne
     have h : recompute_props a P = recompute_props (inbound_succ a hne) (g_extend a P) := by
@@ -581,11 +588,9 @@ namespace CoreParser
       rw [g];
       apply PropsTriplePred.le_refl;
     | isFalse h =>
-      match exists_pred a h with
-      | ⟨b,⟨hne,hab⟩⟩ =>
-        have _ : b.val < a.val := by simp [hab, inbound_succ]; apply Nat.lt_succ_self; -- termination check
-        rw [hab];
-        apply PropsTriplePred.le_trans (recompute_lemma3 b P hne);
+        have g : a = inbound_succ_pred a h := by apply inbound_succ_pred_eq;
+        rw [g, inbound_succ_pred]; simp;
+        apply PropsTriplePred.le_trans (recompute_lemma3 _ P _);
         apply recompute_le_recompute_zero;
   termination_by recompute_le_recompute_zero a P => a.val
   
@@ -623,6 +628,150 @@ namespace CoreParser
       rw [P.isFixed];
       apply PropsTriplePred.le_refl;
     }
-    
+  
+  def Fin.extended_add (a : Fin m) (b : Fin n) : Fin (m+n-1) :=
+    match m, n with
+    | Nat.zero, _ => Fin.elim0 a
+    | _, Nat.zero => Fin.elim0 b
+    | Nat.succ m, Nat.succ n => Fin.mk (a.val + b.val) (by 
+      {
+        have ha := Nat.le_of_lt_succ a.isLt;
+        have hb := Nat.le_of_lt_succ b.isLt;
+        rw [Nat.add_succ, Nat.succ_sub_succ, Nat.sub_zero, Nat.succ_add];
+        apply Nat.lt_succ_of_le;
+        apply Nat.add_le_add ha hb;
+      })
+  
+  def Fin.cast {m n : Nat} (h : m = n) (a : Fin m) : Fin n := Fin.mk a.val (by rw [←h]; apply Fin.isLt)
+  
+  def Fin.extended_add_lt_left : ∀ {a1 a2 : Fin m} {b : Fin n}, a1 ≤ a2 → Fin.extended_add a1 b ≤ Fin.extended_add a2 b := by
+    intro a1 a2 b h
+    simp [extended_add];
+    match m, n with
+    | Nat.zero, _ => exact a1.elim0
+    | _, Nat.zero => exact b.elim0
+    | Nat.succ m, Nat.succ n => simp; apply Nat.add_le_add_right h;
 
+  def Fin.extended_add_lt_right : ∀ {a1 a2 : Fin m} {b : Fin n}, a1 ≤ a2 → Fin.extended_add b a1 ≤ Fin.extended_add b a2 := by
+    intro a1 a2 b h
+    simp [extended_add];
+    match m, n with
+    | Nat.zero, _ => exact a1.elim0
+    | _, Nat.zero => exact b.elim0
+    | Nat.succ m, Nat.succ n => simp; apply Nat.add_le_add_left h;
+  
+  def Maybe.count_found : Maybe p a → Fin 2
+    | found _ => Fin.mk 1 (by trivial)
+    | unknown => Fin.mk 0 (by trivial)
+  
+  def PropsTriple.count_found (P : PropsTriple Pexp G) : Fin 4 :=
+    Fin.extended_add P.fst.count_found (Fin.extended_add P.snd.fst.count_found P.snd.snd.count_found)
+
+  def count_found_aux {Pexp : GProd n} {p : GProd n → PEG n → Prop} (P : (i : Fin n) → Maybe (p Pexp) (Pexp.f i)) (i : Fin n) (res : Fin (n-i.val)) : Fin (n+1) :=
+    have c1 : 2 + (n - i.val) - 1 = n-i.val+1 := by rw [Nat.add_comm, Nat.add_sub_assoc]; trivial;
+    have new_res : Fin (n-i.val+1) := Fin.cast c1 (Fin.extended_add (P i).count_found res);
+    match Nat.decEq i.val 0 with
+    | isTrue h => Fin.cast (by simp [h]) new_res
+    | isFalse h =>
+      have c2 : n-i.val+1 = n - (inbound_pred i h).val := by
+      {
+        rw [inbound_pred]; simp;
+        calc
+          n-i.val+1 = n-Nat.succ (Nat.pred i.val) + 1 := by rw [Nat.succ_pred h]
+          _ = n-(Nat.pred i.val + 1) + 1 := rfl
+          _ = n-Nat.pred i.val-1+1 := rfl
+          _ = n-Nat.pred i.val := by
+            {
+              rw [Nat.sub_add_cancel]; 
+              apply Nat.le_sub_of_add_le;
+              rw [Nat.add_comm, ←Nat.succ_eq_add_one]; 
+              apply Nat.succ_le_of_lt;
+              apply Nat.lt_of_le_of_lt;
+              apply Nat.pred_le;
+              exact i.isLt;
+            }
+      }
+      have _ : (inbound_pred i h).val + 1 < i.val + 1 := by apply Nat.succ_lt_succ; rw [inbound_pred]; simp; apply Nat.pred_lt h; -- prove termination
+      count_found_aux P (inbound_pred i h) (Fin.cast c2 new_res)
+  termination_by count_found_aux P i res => i
+
+  def PropsTriplePred.count_found_helper {Pexp : GProd n} (P : PropsTriplePred Pexp) (i : Fin n) (res : Fin (3*(n-i.val)-2)) : Fin (3*n+1) :=
+    have new_res := (Fin.extended_add (P i).count_found res);
+    match Nat.decEq i.val 0 with
+    | isTrue h =>
+      have c : 4 + (3 * (n - i.val) - 2) - 1 = 3 * n + 1 := by
+      {
+        simp_all;
+        apply Nat.sub_eq_of_eq_add;
+        rw [←Nat.add_sub_assoc (by rw[←Nat.mul_one 2]; apply Nat.mul_le_mul; trivial; exact Pexp.pos_n) 4, Nat.add_comm, Nat.add_sub_assoc];
+        trivial;
+      }
+      Fin.cast c new_res
+    | isFalse h =>
+      have c : 4 + (3 * (n - i.val) - 2) - 1 = 3 * (n - (inbound_pred i h).val) - 2 := by
+      {
+        rw [inbound_pred]; simp;
+        calc
+          4 + (3 * (n - i.val) - 2) - 1 = 4 + (3 * (n - Nat.succ (Nat.pred i.val)) - 2) - 1 := by rw [Nat.succ_pred h]
+          _ = 4 + (3 * (n - Nat.pred i.val - 1) - 2) - 1 := by rw [←Nat.add_one, ←Nat.sub_sub];
+          _ = 4 + (3 * (n - Nat.pred i.val) - 3 - 2) - 1 := by rw [Nat.mul_sub_left_distrib];
+          _ = 3 * (n - Nat.pred i.val) - 2 := by sorry;
+      }
+      have _ : (inbound_pred i h).val + 1 < i.val + 1 := by apply Nat.succ_lt_succ; rw [inbound_pred]; simp; apply Nat.pred_lt h;
+      count_found_helper P (inbound_pred i h) (Fin.cast c new_res)
+  termination_by count_found_helper P i res => i
+
+  def PropsTriplePred.count_found {Pexp : GProd n} (P : PropsTriplePred Pexp) : Fin (3*n+1) :=
+    have pf := fun (i : Fin n) => (P i).fst;
+    have p0 := fun (i : Fin n) => (P i).snd.fst;
+    have ps := fun (i : Fin n) => (P i).snd.snd;
+    have max_i : Fin n := Fin.mk (n-1) (by apply Nat.sub_lt Pexp.pos_n; trivial)
+    have fin_zero : Fin (n - max_i.val) := Fin.mk 0 (by apply Nat.lt_sub_of_add_lt; simp; apply max_i.isLt);
+    have c : n + 1 + (n + 1 + (n + 1) - 1) - 1 = 3 * n + 1 := by
+    {
+      calc
+        n + 1 + (n + 1 + (n + 1) - 1) - 1 = n + (n + 1 + (n + 1) - 1) + 1 - 1 := by rw [Nat.add_assoc, Nat.add_comm 1, ←Nat.add_assoc]
+        _ = n + (n + 1 + (n + 1) - 1) := by rw [Nat.add_sub_cancel]
+        _ = n + (n + (n + 1) + 1 - 1) := by rw [Nat.add_assoc, Nat.add_comm 1, ←Nat.add_assoc]
+        _ = n + (n + (n + 1)) := by rw [Nat.add_sub_cancel]
+        _ = n + n + n + 1 := by rw [←Nat.add_assoc, ←Nat.add_assoc]
+        _ = 3*n+1 := by rw [Nat.succ_mul, Nat.succ_mul, Nat.one_mul]
+    }
+    Fin.cast c (Fin.extended_add (count_found_aux pf max_i fin_zero) (Fin.extended_add (count_found_aux p0 max_i fin_zero) (count_found_aux ps max_i fin_zero)))
+  
+  theorem count_growth_aux_res {Pexp : GProd n} {p : GProd n → PEG n → Prop} (P : (i : Fin n) → Maybe (p Pexp) (Pexp.f i)) (i : Fin n) (res1 res2 : Fin (n-i.val)) 
+                            : res1 ≤ res2 → count_found_aux P i res1 ≤ count_found_aux P i res2 := by
+    intro h;
+    rw [count_found_aux, count_found_aux]; simp;
+    match Nat.decEq i.val 0 with
+    | isTrue g => 
+      {
+        simp [g, Fin.cast];
+        apply Fin.extended_add_lt_right;
+        exact h;
+      }
+    | isFalse g =>
+      {
+        have _ : (inbound_pred i g).val + 1 < i.val + 1 := by
+        {
+          apply Nat.add_lt_add_right;
+          rw [inbound_pred];
+          apply Nat.pred_lt g;
+        }
+        simp [g, Fin.cast];
+        apply count_growth_aux_res;
+        apply Fin.extended_add_lt_right;
+        exact h;
+      }
+  termination_by count_growth_aux_res P i res1 res2 h => i
+
+  theorem PropsTriplePred.count_growth : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp}, P ≤ Q → P.count_found ≤ Q.count_found := by
+    intro Pexp P Q hpq;
+    simp [count_found, Fin.cast];
+    sorry
+  
+  structure ComputeState {Pexp : GProd n} (P : CoherentPred Pexp) where
+    count : Fin (3*n+1)
+    count_eq : count = P.pred.count_found
+  
 end CoreParser
