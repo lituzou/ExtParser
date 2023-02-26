@@ -453,14 +453,6 @@ namespace CoreParser
       | mk yp yc =>
         cases hxy; cases hyx; simp_all; apply PropsTriplePred.eq_of_le_le <;> constructor <;> trivial;
 
-  def unknownPred (Pexp : GProd n) : CoherentPred Pexp :=
-    {
-      pred := fun _ => (unknown, unknown, unknown)
-      coherent := by
-        intro i
-        constructor <;> apply Maybe.le.lhs_unknown
-    }
-
   instance Fin.decEq {n} (a b : Fin n) : Decidable (Eq a b) :=
     match Nat.decEq a.val b.val with
     | isFalse h => isFalse (Fin.ne_of_val_ne h)
@@ -1127,7 +1119,7 @@ namespace CoreParser
     exact hpq;
     exact hcount;
 
-  def compute_props (n : Nat) (Pexp : GProd n) (P : CoherentPred Pexp) : Fixpoint Pexp :=
+  def compute_props {n : Nat} {Pexp : GProd n} (P : CoherentPred Pexp) : Fixpoint Pexp :=
     let fin_zero : Fin n := Fin.mk 0 Pexp.pos_n;
     let new_P : CoherentPred Pexp := recompute_props fin_zero P;
     have le_pred : P ≤ new_P := recompute_lemma1 fin_zero P;
@@ -1160,7 +1152,11 @@ namespace CoreParser
         exact new_P.count_found.isLt;
         exact g;
       }
-      compute_props n Pexp new_P
+      compute_props new_P
   termination_by compute_props n Pexp P => 3 * n + 1 - P.count_found
+
+  def GProd.get_props (Pexp : GProd n) : Fixpoint Pexp :=
+    let unknownPred : CoherentPred Pexp := CoherentPred.mk (fun _ => (unknown, unknown, unknown)) (by intro i; constructor <;> simp <;> exact Maybe.le.lhs_unknown);
+    compute_props unknownPred
 
 end CoreParser
