@@ -1158,5 +1158,11 @@ namespace CoreParser
   def GProd.get_props (Pexp : GProd n) : Fixpoint Pexp :=
     let unknownPred : CoherentPred Pexp := CoherentPred.mk (fun _ => (unknown, unknown, unknown)) (by intro i; constructor <;> simp <;> exact Maybe.le.lhs_unknown);
     compute_props unknownPred
+  
+  def Fixpoint.getPropF {Pexp : GProd n} (P : Fixpoint Pexp) (A : Fin n) : Maybe (PropF Pexp) (Pexp.f A) := (P.coherent_pred.pred A).fst
+  def Fixpoint.getProp0 {Pexp : GProd n} (P : Fixpoint Pexp) (A : Fin n) : Maybe (Prop0 Pexp) (Pexp.f A) := (P.coherent_pred.pred A).snd.fst
+  def Fixpoint.getPropS {Pexp : GProd n} (P : Fixpoint Pexp) (A : Fin n) : Maybe (PropS Pexp) (Pexp.f A) := (P.coherent_pred.pred A).snd.snd
+
+  
 
 end CoreParser
