@@ -649,17 +649,18 @@ namespace CoreParser
     }
   
   def Fin.extended_add (a : Fin m) (b : Fin n) : Fin (m+n-1) :=
-    match m, n with
-    | Nat.zero, _ => Fin.elim0 a
-    | _, Nat.zero => Fin.elim0 b
-    | Nat.succ m, Nat.succ n => Fin.mk (a.val + b.val) (by 
-      {
-        have ha := Nat.le_of_lt_succ a.isLt;
-        have hb := Nat.le_of_lt_succ b.isLt;
+    Fin.mk (a.val + b.val) (by {
+      match m, n with
+      | Nat.zero, _ => exact Fin.elim0 a
+      | _, Nat.zero => exact Fin.elim0 b
+      | Nat.succ m, Nat.succ n => {
         rw [Nat.add_succ, Nat.succ_sub_succ, Nat.sub_zero, Nat.succ_add];
         apply Nat.lt_succ_of_le;
-        apply Nat.add_le_add ha hb;
-      })
+        apply Nat.add_le_add;
+        exact Nat.le_of_lt_succ a.isLt;
+        exact Nat.le_of_lt_succ b.isLt;
+      }
+    })
   
   def Fin.cast {m n : Nat} (h : m = n) (a : Fin m) : Fin n := Fin.mk a.val (by rw [←h]; apply Fin.isLt)
 
