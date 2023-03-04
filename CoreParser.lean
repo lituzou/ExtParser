@@ -1160,10 +1160,101 @@ namespace CoreParser
     let unknownPred : CoherentPred Pexp := CoherentPred.mk (fun _ => (unknown, unknown, unknown)) (by intro i; constructor <;> simp <;> exact Maybe.le.lhs_unknown);
     compute_props unknownPred
   
-  def Fixpoint.getPropF {Pexp : GProd n} (P : Fixpoint Pexp) (A : Fin n) : Maybe (PropF Pexp) (Pexp.f A) := (P.coherent_pred.pred A).fst
-  def Fixpoint.getProp0 {Pexp : GProd n} (P : Fixpoint Pexp) (A : Fin n) : Maybe (Prop0 Pexp) (Pexp.f A) := (P.coherent_pred.pred A).snd.fst
-  def Fixpoint.getPropS {Pexp : GProd n} (P : Fixpoint Pexp) (A : Fin n) : Maybe (PropS Pexp) (Pexp.f A) := (P.coherent_pred.pred A).snd.snd
-
+  def getPropF (Pexp : GProd n) (G : PEG n) : Maybe (PropF Pexp) G :=
+    let P := Pexp.get_props.coherent_pred.pred;
+    (g_props G P).fst
   
+  def getProp0 (Pexp : GProd n) (G : PEG n) : Maybe (Prop0 Pexp) G :=
+    let P := Pexp.get_props.coherent_pred.pred;
+    (g_props G P).snd.fst
+  
+  def getPropS (Pexp : GProd n) (G : PEG n) : Maybe (PropS Pexp) G :=
+    let P := Pexp.get_props.coherent_pred.pred;
+    (g_props G P).snd.snd
+  
+  inductive IsKnown (m : Maybe p a) : Prop where
+  | mk : ∀ (h : p a), m = found h → IsKnown m
+
+  theorem IsKnown.neg_of_unknown : ∀ m : Maybe p a, m = unknown → ¬IsKnown m := by
+    intro m h_unknown h
+    cases h;
+    cases h_unknown;
+    contradiction; 
+
+  def IsKnown.from_maybe (m : Maybe p a) : Decidable (IsKnown m) :=
+    match m with
+    | found h => isTrue (IsKnown.mk h rfl)
+    | unknown => isFalse (by apply IsKnown.neg_of_unknown; rfl)
+  
+  def IsKnown.get_result {m : Maybe p a} (k : IsKnown m) : p a :=
+    match k with
+    | mk h _ => h
+
+  inductive StructuralWF (Pexp : GProd n) : PEG n → Prop where
+    | ε : StructuralWF Pexp ε
+    | any : StructuralWF Pexp any
+    | terminal : ∀ (c : Char), StructuralWF Pexp (terminal c)
+    | nonTerminal : ∀ (vn : Fin n), StructuralWF Pexp (nonTerminal vn)
+    | seq : ∀ (e1 e2 : PEG n), StructuralWF Pexp e1 → StructuralWF Pexp e2 → StructuralWF Pexp (seq e1 e2)
+    | prior : ∀ (e1 e2 : PEG n), StructuralWF Pexp e1 → StructuralWF Pexp e2 → StructuralWF Pexp (prior e1 e2)
+    | star : ∀ (e : PEG n), StructuralWF Pexp e → ¬IsKnown (getProp0 Pexp e) → StructuralWF Pexp (star e)
+    | notP : ∀ (e : PEG n), StructuralWF Pexp e → StructuralWF Pexp (notP e)
+
+  def check_StructuralWF (Pexp : GProd n) (G : PEG n) : Maybe (StructuralWF Pexp) G :=
+    match G with
+    | ε => found .ε
+    | any => found .any
+    | terminal c => found (.terminal c)
+    | nonTerminal vn => found (.nonTerminal vn)
+    | seq e1 e2 => match check_StructuralWF Pexp e1, check_StructuralWF Pexp e2 with
+      | found h1, found h2 => found (.seq e1 e2 h1 h2)
+      | _, _ => unknown
+    | prior e1 e2 => match check_StructuralWF Pexp e1, check_StructuralWF Pexp e2 with
+      | found h1, found h2 => found (.prior e1 e2 h1 h2)
+      | _, _ => unknown
+    | star e => match check_StructuralWF Pexp e, IsKnown.from_maybe (getProp0 Pexp e) with
+      | found h1, isFalse h2 => found (.star e h1 h2)
+      | _, _ => unknown
+    | notP e => match check_StructuralWF Pexp e with
+      | found h => found (.notP e h)
+      | _ => unknown
+  
+  abbrev StructuralWF_GProd (Pexp : GProd n) := ∀ (i : Fin n), StructuralWF Pexp (Pexp.f i)
+  abbrev StructuralWF_GProd_partial (u : Fin n) (Pexp : GProd n) := ∀ (i : Fin n), i ≤ u → StructuralWF Pexp (Pexp.f i)
+
+  theorem StructuralWF_GProd.from_partial {Pexp : GProd n} {hlt : n-1 < n} : StructuralWF_GProd_partial {val := n-1, isLt := hlt} Pexp → StructuralWF_GProd Pexp := by
+  {
+    intro h i;
+    apply h;
+    apply Nat.le_sub_of_add_le;
+    apply Nat.succ_le_of_lt;
+    exact i.isLt;
+  }
+  
+  def check_StructuralWF_GProd_partial (u : Fin n) (Pexp : GProd n) : Maybe (StructuralWF_GProd_partial u) Pexp :=
+    let curr_check := check_StructuralWF Pexp (Pexp.f u);
+    match curr_check, Nat.decEq u.val 0 with
+    | found h, isTrue g => found (by {
+      intro i hle;
+      have heq : i = u := by apply Fin.eq_of_val_eq; cases u; cases i; simp_all; apply Nat.eq_zero_of_le_zero; exact hle;
+      rw [heq];
+      exact h;
+    })
+    | found h, isFalse g => match check_StructuralWF_GProd_partial (inbound_pred u g) Pexp with
+      | found hpred => found (by {
+        intro i hle;
+        cases Nat.eq_or_lt_of_le hle with
+        | inl heq => rw [Fin.eq_of_val_eq heq]; exact h;
+        | inr hlt => apply hpred; rw [inbound_pred]; rw [←Nat.succ_pred g] at hlt; apply Nat.le_of_lt_succ; exact hlt;
+      })
+      | unknown => unknown
+    | unknown, _ => unknown
+  termination_by check_StructuralWF_GProd_partial u Pexp => u.val
+
+  def check_StructuralWF_GProd (Pexp : GProd n) : Maybe StructuralWF_GProd Pexp :=
+    let max_i : Fin n := Fin.mk (n-1) (by apply Nat.sub_lt Pexp.pos_n; trivial);
+    match check_StructuralWF_GProd_partial max_i Pexp with
+    | found h => found (StructuralWF_GProd.from_partial h)
+    | unknown => unknown
 
 end CoreParser
