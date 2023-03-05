@@ -1,4 +1,5 @@
 import Mathlib.Init.Function
+import ExtParser.FinUtils
 
 namespace CoreParser
 
@@ -1341,4 +1342,25 @@ namespace CoreParser
     | found h => found (PatternWF_GProd.from_partial h)
     | unknown => unknown 
 
+  structure WellformedGrammar (Pexp : GProd n) where
+    structural : StructuralWF_GProd Pexp
+    pattern : ∃ σ : Bijective p, PatternWF_GProd Pexp σ
+
+  def mapping_from_list (l : List (Fin n)) (length_eq : l.length = n) : Fin n → Fin n :=
+    fun i => l.get (Fin.cast (Eq.symm length_eq) i)
+  
+  theorem bijective_from_list (l : List (Fin n)) (length_eq : l.length = n) (distinct : ∀ {i j}, l.get i = l.get j → i = j) : Bijective (mapping_from_list l length_eq) := by
+    constructor;
+    {
+      rw [Injective];
+      intro i j h;
+      rw [mapping_from_list, mapping_from_list] at h;
+      have g := Fin.val_eq_of_eq (distinct h);
+      simp [Fin.cast] at g;
+      apply Fin.eq_of_val_eq g;
+    }
+    {
+      sorry
+    }
+  
 end CoreParser
