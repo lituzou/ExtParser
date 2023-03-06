@@ -456,11 +456,6 @@ namespace CoreParser
       | mk yp yc =>
         cases hxy; cases hyx; simp_all; apply PropsTriplePred.eq_of_le_le <;> constructor <;> trivial;
 
-  instance Fin.decEq {n} (a b : Fin n) : Decidable (Eq a b) :=
-    match Nat.decEq a.val b.val with
-    | isFalse h => isFalse (Fin.ne_of_val_ne h)
-    | isTrue h => isTrue (Fin.eq_of_val_eq h)
-  
   def g_extend {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp) : CoherentPred Pexp :=
     {
       pred := fun b =>  match Fin.decEq a b with
@@ -501,41 +496,12 @@ namespace CoreParser
       | mk fpq => exact fpq b
     | isTrue h => cases h; simp; apply g_props_growth hpq
 
-  def inbound_succ (a : Fin n) (hne : a.val.succ ≠ n) : Fin n :=
-    {val := a.val.succ, isLt := Nat.lt_of_le_of_ne (Nat.lt_of_succ_le a.isLt) hne}
-  
-  def inbound_pred (a : Fin n) (hne : a.val ≠ 0) : Fin n :=
-    {val := a.val.pred, isLt := Nat.lt_trans (Nat.pred_lt hne) (a.isLt)}
-  
-  def inbound_pred_succ (a : Fin n) (hne : a.val.succ ≠ n) : Fin n :=
-    have h : (inbound_succ a hne).val ≠ 0 := by rw [inbound_succ]; simp;
-    inbound_pred (inbound_succ a hne) h
-  
-  def inbound_succ_pred (a : Fin n) (hne : a.val ≠ 0) : Fin n :=
-    have h : (inbound_pred a hne).val.succ ≠ n := by rw [inbound_pred]; simp; rw [Nat.succ_pred hne]; apply Nat.ne_of_lt; apply a.isLt;
-    inbound_succ (inbound_pred a hne) h
-  
-  theorem inbound_pred_succ_eq : ∀ (a : Fin n) (hne : a.val.succ ≠ n), a = inbound_pred_succ a hne := by
-    intro a hne;
-    apply Fin.eq_of_val_eq;
-    rw [inbound_pred_succ]; simp;
-    rw [inbound_pred]; simp;
-    rw [inbound_succ]; simp;
-
-  theorem inbound_succ_pred_eq : ∀ (a : Fin n) (hne : a.val ≠ 0), a = inbound_succ_pred a hne := by
-    intro a hne;
-    apply Fin.eq_of_val_eq;
-    rw [inbound_succ_pred]; simp;
-    rw [inbound_succ]; simp;
-    rw [inbound_pred]; simp;
-    rw [Nat.succ_pred hne];
-  
   def recompute_props {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp) : CoherentPred Pexp :=
     match Nat.decEq a.val.succ n with
     | isTrue _ => g_extend a P
     | isFalse hne =>
       have _ : n - a.val.succ < n - a.val := Nat.sub_succ_lt_self n a.val a.isLt; -- prove termination
-      recompute_props (inbound_succ a hne) (g_extend a P)
+      recompute_props (Fin.inbound_succ a hne) (g_extend a P)
   termination_by recompute_props a P => n - a.val
 
   theorem recompute_lemma1 : ∀ {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp), P ≤ recompute_props a P := by
@@ -568,9 +534,9 @@ namespace CoreParser
     }
   termination_by recompute_lemma2 a P Q hpq => n - a.val
 
-  theorem recompute_lemma3 : ∀ {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp), (hne : ¬(a.val.succ = n)) → recompute_props (inbound_succ a hne) P ≤ recompute_props a P := by
+  theorem recompute_lemma3 : ∀ {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp), (hne : ¬(a.val.succ = n)) → recompute_props (Fin.inbound_succ a hne) P ≤ recompute_props a P := by
     intro Pexp a P hne
-    have h : recompute_props a P = recompute_props (inbound_succ a hne) (g_extend a P) := by
+    have h : recompute_props a P = recompute_props (Fin.inbound_succ a hne) (g_extend a P) := by
       rw [recompute_props]
       cases Nat.decEq a.val.succ n
       simp
@@ -587,8 +553,8 @@ namespace CoreParser
       rw [g];
       apply PropsTriplePred.le_refl;
     | isFalse h =>
-        have g : a = inbound_succ_pred a h := by apply inbound_succ_pred_eq;
-        rw [g, inbound_succ_pred]; simp;
+        have g : a = Fin.inbound_succ_pred a h := by apply Fin.inbound_succ_pred_eq;
+        rw [g, Fin.inbound_succ_pred]; simp;
         apply PropsTriplePred.le_trans (recompute_lemma3 _ P _);
         apply recompute_le_recompute_zero;
   termination_by recompute_le_recompute_zero a P => a.val
@@ -634,119 +600,6 @@ namespace CoreParser
       apply PropsTriplePred.le_refl;
     }
 
-
-  theorem Nat.eq_eq_of_le_le_eq : ∀ {a b c d : Nat}, a ≤ c → b ≤ d → a + b = c + d → (a = c ∧ b = d) := by
-    intro a b c d le_ac le_bd h;
-    cases Nat.eq_or_lt_of_le le_ac;
-    {
-      simp_all; exact Nat.add_left_cancel h;
-    }
-    {
-      cases Nat.eq_or_lt_of_le le_bd;
-      {
-        simp_all;
-        exact Nat.add_right_cancel h;
-      }
-      {
-        have g : a + b ≠ c + d := by apply Nat.ne_of_lt; apply Nat.add_lt_add; assumption; assumption;
-        contradiction;
-      }
-    }
-  
-  def Fin.extended_add (a : Fin m) (b : Fin n) : Fin (m+n-1) :=
-    Fin.mk (a.val + b.val) (by {
-      match m, n with
-      | Nat.zero, _ => exact Fin.elim0 a
-      | _, Nat.zero => exact Fin.elim0 b
-      | Nat.succ m, Nat.succ n => {
-        rw [Nat.add_succ, Nat.succ_sub_succ, Nat.sub_zero, Nat.succ_add];
-        apply Nat.lt_succ_of_le;
-        apply Nat.add_le_add;
-        exact Nat.le_of_lt_succ a.isLt;
-        exact Nat.le_of_lt_succ b.isLt;
-      }
-    })
-  
-  def Fin.cast {m n : Nat} (h : m = n) (a : Fin m) : Fin n := Fin.mk a.val (by rw [←h]; apply Fin.isLt)
-
-  theorem Fin.extended_add_eq_add_right : ∀ {a1 a2 : Fin m} {b : Fin n}, a1 = a2 ↔ Fin.extended_add a1 b = Fin.extended_add a2 b := by
-    intro a1 a2 b
-    apply Iff.intro;
-    {
-      intro h;
-      simp [h];
-    }
-    {
-      intro h;
-      simp [extended_add] at h;
-      match m, n with
-      | Nat.zero, _ => exact a1.elim0;
-      | _, Nat.zero => exact b.elim0;
-      | Nat.succ m, Nat.succ n => simp at h; apply Fin.eq_of_val_eq; apply Nat.add_right_cancel h;
-    }
-  
-  theorem Fin.extended_add_eq_add_left : ∀ {a1 a2 : Fin m} {b : Fin n}, a1 = a2 ↔ Fin.extended_add b a1 = Fin.extended_add b a2 := by
-    intro a1 a2 b
-    apply Iff.intro;
-    {
-      intro h;
-      simp [h];
-    }
-    {
-      intro h;
-      simp [extended_add] at h;
-      match m, n with
-      | Nat.zero, _ => exact a1.elim0;
-      | _, Nat.zero => exact b.elim0;
-      | Nat.succ m, Nat.succ n => simp at h; apply Fin.eq_of_val_eq; apply Nat.add_left_cancel h;
-    }
-  
-  theorem Fin.extended_add_le_add_right : ∀ {a1 a2 : Fin m} {b : Fin n}, a1 ≤ a2 → Fin.extended_add a1 b ≤ Fin.extended_add a2 b := by
-    intro a1 a2 b h
-    simp [extended_add];
-    match m, n with
-    | Nat.zero, _ => exact a1.elim0
-    | _, Nat.zero => exact b.elim0
-    | Nat.succ m, Nat.succ n => simp; apply Nat.add_le_add_right h;
-
-  theorem Fin.extended_add_le_add_left : ∀ {a1 a2 : Fin m} {b : Fin n}, a1 ≤ a2 → Fin.extended_add b a1 ≤ Fin.extended_add b a2 := by
-    intro a1 a2 b h
-    simp [extended_add];
-    match m, n with
-    | Nat.zero, _ => exact a1.elim0
-    | _, Nat.zero => exact b.elim0
-    | Nat.succ m, Nat.succ n => simp; apply Nat.add_le_add_left h;
-  
-  theorem Fin.extended_add_le_add : ∀ {a1 a2 : Fin m} {b1 b2 : Fin n}, a1 ≤ a2 → b1 ≤ b2 → Fin.extended_add a1 b1 ≤ Fin.extended_add a2 b2 := by
-    intro a1 a2 b1 b2 ha hb;
-    simp [extended_add, extended_add];
-    match m, n with
-    | Nat.zero, _ => exact a1.elim0
-    | _, Nat.zero => exact b1.elim0
-    | Nat.succ m, Nat.succ n => simp; apply Nat.add_le_add ha hb;
-  
-  theorem Fin.extended_eq_eq_of_le_le_eq : ∀ {a c : Fin m} {b d : Fin n}, a ≤ c → b ≤ d → Fin.extended_add a b = Fin.extended_add c d → (a = c ∧ b = d) := by
-    intro a c b d le_ac le_bd h;
-    simp [extended_add] at h;
-    match m, n with
-    | Nat.zero, _ => exact a.elim0;
-    | _, Nat.zero => exact b.elim0;
-    | Nat.succ m, Nat.succ n =>
-      {
-        simp_all;
-        have g := Nat.eq_eq_of_le_le_eq le_ac le_bd h;
-        exact ⟨Fin.eq_of_val_eq g.left, Fin.eq_of_val_eq g.right⟩; 
-      }
-  
-  theorem Fin.le_trans : ∀ {a b c : Fin n}, a ≤ b → b ≤ c → a ≤ c := by
-    intro a b c hab hbc;
-    apply Nat.le_trans hab hbc;
-  
-  theorem Fin.le_cast : ∀ {a b : Fin m} {h : m = n}, a ≤ b → Fin.cast h a ≤ Fin.cast h b := by
-    intro a b h hab;
-    rw [Fin.cast];
-    exact hab;
-  
   def Maybe.count_found : Maybe p a → Fin 2
     | found _ => Fin.mk 1 (by trivial)
     | unknown => Fin.mk 0 (by trivial)
@@ -772,6 +625,24 @@ namespace CoreParser
     apply Fin.extended_add_le_add;
     apply Maybe.count_growth; assumption;
     apply Fin.extended_add_le_add <;> apply Maybe.count_growth <;> assumption;
+
+  theorem Nat.eq_eq_of_le_le_eq : ∀ {a b c d : Nat}, a ≤ c → b ≤ d → a + b = c + d → (a = c ∧ b = d) := by
+    intro a b c d le_ac le_bd h;
+    cases Nat.eq_or_lt_of_le le_ac;
+    {
+      simp_all; exact Nat.add_left_cancel h;
+    }
+    {
+      cases Nat.eq_or_lt_of_le le_bd;
+      {
+        simp_all;
+        exact Nat.add_right_cancel h;
+      }
+      {
+        have g : a + b ≠ c + d := by apply Nat.ne_of_lt; apply Nat.add_lt_add; assumption; assumption;
+        contradiction;
+      }
+    }
 
   theorem PropsTriple.eq_of_le_with_same_count : ∀ (P Q : PropsTriple Pexp G), P ≤ Q → P.count_found = Q.count_found → P = Q := by
     intro P Q hle hcount;
@@ -820,9 +691,9 @@ namespace CoreParser
       }
       Fin.cast c new_res
     | isFalse h =>
-      have c : 4 + (3 * (n - i.val) - 2) - 1 = 3 * (n - (inbound_pred i h).val) - 2 := by
+      have c : 4 + (3 * (n - i.val) - 2) - 1 = 3 * (n - (Fin.inbound_pred i h).val) - 2 := by
       {
-        rw [inbound_pred]; simp;
+        rw [Fin.inbound_pred]; simp;
         calc
           4 + (3 * (n - i.val) - 2) - 1 = 4 + (3 * (n - Nat.succ (Nat.pred i.val)) - 2) - 1 := by rw [Nat.succ_pred h]
           _ = 4 + (3 * (n - Nat.pred i.val - 1) - 2) - 1 := by rw [←Nat.add_one, ←Nat.sub_sub];
@@ -843,8 +714,8 @@ namespace CoreParser
         apply Nat.succ_le_of_lt;
         exact i.isLt;
       }
-      have _ : (inbound_pred i h).val + 1 < i.val + 1 := by apply Nat.succ_lt_succ; rw [inbound_pred]; simp; apply Nat.pred_lt h;
-      count_found_helper P (inbound_pred i h) (Fin.cast c new_res)
+      have _ : (Fin.inbound_pred i h).val + 1 < i.val + 1 := by apply Nat.succ_lt_succ; rw [Fin.inbound_pred]; simp; apply Nat.pred_lt h;
+      count_found_helper P (Fin.inbound_pred i h) (Fin.cast c new_res)
   termination_by count_found_helper P i res => i
 
   def PropsTriplePred.count_found {Pexp : GProd n} (P : PropsTriplePred Pexp) : Fin (3*n+1) :=
@@ -878,10 +749,10 @@ namespace CoreParser
       }
     | isFalse g =>
       {
-        have _ : (inbound_pred i g).val + 1 < i.val + 1 := by
+        have _ : (Fin.inbound_pred i g).val + 1 < i.val + 1 := by
         {
           apply Nat.add_lt_add_right;
-          rw [inbound_pred];
+          rw [Fin.inbound_pred];
           apply Nat.pred_lt g;
         }
         simp [g, Fin.cast];
@@ -937,10 +808,10 @@ namespace CoreParser
         | isFalse g =>
           {
             simp [g];
-            have _ : (inbound_pred i g).val + 1 < i.val + 1 := by
+            have _ : (Fin.inbound_pred i g).val + 1 < i.val + 1 := by
             {
               apply Nat.add_lt_add_right;
-              rw [inbound_pred];
+              rw [Fin.inbound_pred];
               apply Nat.pred_lt g;
             }
             have cpq : Fin.extended_add (PropsTriple.count_found (P i)) res ≤ Fin.extended_add (PropsTriple.count_found (Q i)) res := by
@@ -1011,10 +882,10 @@ namespace CoreParser
         | PropsTriplePred.le.mk f =>
           {
             simp [h, Fin.cast] at *;
-            have _ : (inbound_pred i h).val + 1 < i.val + 1 := by
+            have _ : (Fin.inbound_pred i h).val + 1 < i.val + 1 := by
             {
               apply Nat.add_lt_add_right;
-              simp [inbound_pred];
+              simp [Fin.inbound_pred];
               apply Nat.pred_lt h;
             }
             intro hcount;
@@ -1027,7 +898,7 @@ namespace CoreParser
               }
               exact le_res;
             }
-            have g2 := count_found_helper_eq_pred_res P Q (inbound_pred i h) _ _ le_pred g1 hcount;
+            have g2 := count_found_helper_eq_pred_res P Q (Fin.inbound_pred i h) _ _ le_pred g1 hcount;
             have g3 : (Fin.extended_add (PropsTriple.count_found (P i)) res1).val = (Fin.extended_add (PropsTriple.count_found (Q i)) res2).val := by
             {
               have g := Fin.val_eq_of_eq g2.right;
@@ -1062,10 +933,10 @@ namespace CoreParser
           | isTrue _ => contradiction
           | isFalse h => rfl
         }
-        have _ : (inbound_pred i h).val + 1 < i.val + 1 := by
+        have _ : (Fin.inbound_pred i h).val + 1 < i.val + 1 := by
         {
           apply Nat.add_lt_add_right;
-          simp [inbound_pred];
+          simp [Fin.inbound_pred];
           apply Nat.pred_lt h;
         }
         simp [simp_hcount] at hcount;
@@ -1084,7 +955,7 @@ namespace CoreParser
             {
               have lt_ji : j < i := by assumption;
               apply g;
-              simp [inbound_pred];
+              simp [Fin.inbound_pred];
               apply Nat.le_of_lt_succ;
               simp;
               rw [Nat.succ_pred h];
@@ -1251,12 +1122,12 @@ namespace CoreParser
       rw [heq];
       exact h;
     })
-    | found h, isFalse g => match check_StructuralWF_GProd_partial (inbound_pred u g) Pexp with
+    | found h, isFalse g => match check_StructuralWF_GProd_partial (Fin.inbound_pred u g) Pexp with
       | found hpred => found (by {
         intro i hle;
         cases Nat.eq_or_lt_of_le hle with
         | inl heq => rw [Fin.eq_of_val_eq heq]; exact h;
-        | inr hlt => apply hpred; rw [inbound_pred]; rw [←Nat.succ_pred g] at hlt; apply Nat.le_of_lt_succ; exact hlt;
+        | inr hlt => apply hpred; rw [Fin.inbound_pred]; rw [←Nat.succ_pred g] at hlt; apply Nat.le_of_lt_succ; exact hlt;
       })
       | unknown => unknown
     | unknown, _ => unknown
@@ -1325,12 +1196,12 @@ namespace CoreParser
       rw [heq];
       exact h;
     })
-    | found h, isFalse g => match check_PatternWF_GProd_partial (inbound_pred u g) Pexp σ with
+    | found h, isFalse g => match check_PatternWF_GProd_partial (Fin.inbound_pred u g) Pexp σ with
       | found hpred => found (by {
         intro i hle;
         cases Nat.eq_or_lt_of_le hle with
         | inl heq => rw [Fin.eq_of_val_eq heq]; exact h;
-        | inr hlt => apply hpred; rw [inbound_pred]; rw [←Nat.succ_pred g] at hlt; apply Nat.le_of_lt_succ; exact hlt;
+        | inr hlt => apply hpred; rw [Fin.inbound_pred]; rw [←Nat.succ_pred g] at hlt; apply Nat.le_of_lt_succ; exact hlt;
       })
       | unknown => unknown 
     | unknown, _ => unknown
