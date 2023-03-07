@@ -43,7 +43,6 @@ namespace CoreParser
       | seq_0F : ∀ (e1 e2 : PEG n), Prop0 Pexp e1 → PropF Pexp e2 → PropF Pexp (seq e1 e2)
       | seq_SF : ∀ (e1 e2 : PEG n), PropS Pexp e1 → PropF Pexp e2 → PropF Pexp (seq e1 e2)
       | prior : ∀ (e1 e2 : PEG n), PropF Pexp e1 → PropF Pexp e2 → PropF Pexp (prior e1 e2)
-      | star : ∀ (e : PEG n), PropF Pexp (star e)
       | notP_0 : ∀ (e : PEG n), Prop0 Pexp e → PropF Pexp (notP e)
       | notP_S : ∀ (e : PEG n), PropS Pexp e → PropF Pexp (notP e)
 
