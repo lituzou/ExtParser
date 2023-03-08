@@ -20,16 +20,16 @@ namespace AST
   inductive StarPreAST' : PreAST' n b → Prop where
     | star : StarPreAST' (.star s e T0 TS)
 
-  inductive PreAST'.Wellformed : PreAST' n b → Prop where
-    | skip : Wellformed (.skip s e G)
-    | ε : Wellformed (.ε s e)
-    | any : Wellformed (.any s e x)
-    | terminal : Wellformed (.terminal s e a x)
-    | nonTerminal : Wellformed T → ¬SkipPreAST' T → Wellformed (.nonTerminal s e A T)
-    | seq : Wellformed T1 → Wellformed T2 → ¬SkipPreAST' T1 → Wellformed (.seq s e T1 T2)
-    | prior : Wellformed T1 → Wellformed T2 → ¬SkipPreAST' T1 → Wellformed (.prior s e T1 T2)
-    | star : Wellformed T0 → Wellformed TS → ¬SkipPreAST' T0 → (SkipPreAST' TS ∨ StarPreAST' TS) → Wellformed (.star s e T0 TS)
-    | notP : Wellformed T → ¬SkipPreAST' T → Wellformed (.notP s e T)
+  inductive PreAST'.IsValid : PreAST' n b → Prop where
+    | skip : IsValid (.skip s e G)
+    | ε : IsValid (.ε s e)
+    | any : IsValid (.any s e x)
+    | terminal : IsValid (.terminal s e a x)
+    | nonTerminal : IsValid T → ¬SkipPreAST' T → IsValid (.nonTerminal s e A T)
+    | seq : IsValid T1 → IsValid T2 → ¬SkipPreAST' T1 → IsValid (.seq s e T1 T2)
+    | prior : IsValid T1 → IsValid T2 → ¬SkipPreAST' T1 → IsValid (.prior s e T1 T2)
+    | star : IsValid T0 → IsValid TS → ¬SkipPreAST' T0 → (SkipPreAST' TS ∨ StarPreAST' TS) → IsValid (.star s e T0 TS)
+    | notP : IsValid T → ¬SkipPreAST' T → IsValid (.notP s e T)
 
   def PreAST'.size (T : PreAST' n b) : Nat :=
     match T with
@@ -46,38 +46,38 @@ namespace AST
 
   structure PreAST (n : Nat) (b : Nat) where
     T : PreAST' n b
-    wf_T : PreAST'.Wellformed T
+    valid_T : PreAST'.IsValid T
 
   mutual
 
   inductive SuccessAST : PreAST n b → Prop where
-    | ε : s = e → SuccessAST { T := .ε s e, wf_T := .ε }
-    | any : s.inbound_succ h = e → SuccessAST { T := .any s e x, wf_T := .any }
-    | terminal : s.inbound_succ h = e → a = x → SuccessAST { T := .terminal s e a x, wf_T := .terminal }
-    | nonTerminal : SuccessAST T → SuccessAST { T := .nonTerminal s e A T.T, wf_T := .nonTerminal T.wf_T h}
-    | seq : SuccessAST T1 → SuccessAST T2 → SuccessAST { T := .seq s e T1.T T2.T, wf_T := .seq T1.wf_T T2.wf_T h }
-    | prior_S : ∀ {T2 : PreAST n b}, SuccessAST T1 → SuccessAST { T := .prior s e T1.T T2.T, wf_T := .prior T1.wf_T T2.wf_T h }
-    | prior_FS : FailureAST T1 → SuccessAST T2 → SuccessAST { T := .prior s e T1.T T2.T, wf_T := .prior T1.wf_T T2.wf_T h }
-    | star_F : ∀ {TS : PreAST n b} {h2 : SkipPreAST' TS.T ∨ StarPreAST' TS.T}, FailureAST T0 → SuccessAST { T := .star s e T0.T TS.T, wf_T := .star T0.wf_T TS.wf_T h1 h2 }
-    | star_SS : SuccessAST T0 → SuccessAST TS → SuccessAST { T := .star s e T0.T TS.T, wf_T := .star T0.wf_T TS.wf_T h1 h2 }
-    | notP : FailureAST T → SuccessAST { T := .notP s e T.T, wf_T := .notP T.wf_T h }
+    | ε : s = e → SuccessAST { T := .ε s e, valid_T := .ε }
+    | any : s.inbound_succ h = e → SuccessAST { T := .any s e x, valid_T := .any }
+    | terminal : s.inbound_succ h = e → a = x → SuccessAST { T := .terminal s e a x, valid_T := .terminal }
+    | nonTerminal : SuccessAST T → SuccessAST { T := .nonTerminal s e A T.T, valid_T := .nonTerminal T.valid_T h}
+    | seq : SuccessAST T1 → SuccessAST T2 → SuccessAST { T := .seq s e T1.T T2.T, valid_T := .seq T1.valid_T T2.valid_T h }
+    | prior_S : ∀ {T2 : PreAST n b}, SuccessAST T1 → SuccessAST { T := .prior s e T1.T T2.T, valid_T := .prior T1.valid_T T2.valid_T h }
+    | prior_FS : FailureAST T1 → SuccessAST T2 → SuccessAST { T := .prior s e T1.T T2.T, valid_T := .prior T1.valid_T T2.valid_T h }
+    | star_F : ∀ {TS : PreAST n b} {h2 : SkipPreAST' TS.T ∨ StarPreAST' TS.T}, FailureAST T0 → SuccessAST { T := .star s e T0.T TS.T, valid_T := .star T0.valid_T TS.valid_T h1 h2 }
+    | star_SS : SuccessAST T0 → SuccessAST TS → SuccessAST { T := .star s e T0.T TS.T, valid_T := .star T0.valid_T TS.valid_T h1 h2 }
+    | notP : FailureAST T → SuccessAST { T := .notP s e T.T, valid_T := .notP T.valid_T h }
 
   inductive FailureAST : PreAST n b → Prop where
-    | any : s = e → FailureAST { T := .any s e x, wf_T := .any }
-    | terminal_mismatch : s.inbound_succ h = e → a ≠ x → FailureAST { T := .terminal s e a x, wf_T := .terminal }
-    | terminal_empty : s = e → FailureAST { T := .terminal s e a x, wf_T := .terminal }
-    | nonTerminal : FailureAST T → FailureAST { T := .nonTerminal s e A T.T, wf_T := .nonTerminal T.wf_T h}
-    | seq_F : ∀ {T2 : PreAST n b}, FailureAST T1 → FailureAST { T := .seq s e T1.T T2.T, wf_T := .seq T1.wf_T T2.wf_T h }
-    | seq_SF : SuccessAST T1 → FailureAST T2 → FailureAST { T := .seq s e T1.T T2.T, wf_T := .seq T1.wf_T T2.wf_T h }
-    | prior : FailureAST T1 → FailureAST T2 → FailureAST { T := .prior s e T1.T T2.T, wf_T := .prior T1.wf_T T2.wf_T h }
-    | notP : SuccessAST T → FailureAST { T := .notP s e T.T, wf_T := .notP T.wf_T h }
+    | any : s = e → FailureAST { T := .any s e x, valid_T := .any }
+    | terminal_mismatch : s.inbound_succ h = e → a ≠ x → FailureAST { T := .terminal s e a x, valid_T := .terminal }
+    | terminal_empty : s = e → FailureAST { T := .terminal s e a x, valid_T := .terminal }
+    | nonTerminal : FailureAST T → FailureAST { T := .nonTerminal s e A T.T, valid_T := .nonTerminal T.valid_T h}
+    | seq_F : ∀ {T2 : PreAST n b}, FailureAST T1 → FailureAST { T := .seq s e T1.T T2.T, valid_T := .seq T1.valid_T T2.valid_T h }
+    | seq_SF : SuccessAST T1 → FailureAST T2 → FailureAST { T := .seq s e T1.T T2.T, valid_T := .seq T1.valid_T T2.valid_T h }
+    | prior : FailureAST T1 → FailureAST T2 → FailureAST { T := .prior s e T1.T T2.T, valid_T := .prior T1.valid_T T2.valid_T h }
+    | notP : SuccessAST T → FailureAST { T := .notP s e T.T, valid_T := .notP T.valid_T h }
 
   end
 
   theorem SuccessAST.ne_failure : ∀ {T : PreAST n b}, SuccessAST T → ¬FailureAST T := by
     intro T hs hf;
     match T with
-    | .mk T wf_T => match T with
+    | .mk T valid_T => match T with
       | .skip _ _ _ => cases hs;
       | .ε _ _ => cases hf;
       | .any _ _ _ => cases hs; cases hf; apply absurd (by assumption); apply Fin.ne_of_val_ne; apply Nat.ne_of_lt; apply Fin.lt_from_inbound_succ; assumption;
@@ -177,7 +177,7 @@ namespace AST
   
   def PreAST.check_type (T : PreAST n b) : TypeAST T :=
     match T with
-    | .mk T wf_T => match T with
+    | .mk T valid_T => match T with
       | .skip s e G => .undefined (by intro h; cases h;) (by intro h; cases h;)
       | .ε s e => match decEq s e with
         | isTrue heq => .success (.ε heq)
@@ -197,7 +197,7 @@ namespace AST
         | isFalse hne_e, isFalse hne_b, isFalse hne_ax => match decEq (s.inbound_succ hne_b) e with
           | isTrue g => .failure (.terminal_mismatch g hne_ax)
           | isFalse g => .undefined (by intro h; cases h; contradiction;) (by intro h; cases h; apply absurd _ g; simp [Fin.inbound_succ] at *; apply Fin.eq_of_val_eq; apply Fin.val_eq_of_eq; assumption; contradiction;)
-      | .nonTerminal s e A sub_T => match wf_T with
+      | .nonTerminal s e A sub_T => match valid_T with
         | .nonTerminal wf ns =>
           let T_ast : PreAST n b := (PreAST.mk sub_T wf);
           have g : (¬SkipPreAST' T_ast.T) := by simp; exact ns;
@@ -205,7 +205,7 @@ namespace AST
           | .success h => .success (.nonTerminal (h := g) h)
           | .failure h => .failure (.nonTerminal (h := g) h)
           | .undefined hs hf => .undefined (by intro h; cases h; contradiction;) (by intro h; cases h; contradiction;)
-      | .seq s e T1 T2 => match wf_T with
+      | .seq s e T1 T2 => match valid_T with
         | .seq wf1 wf2 ns =>
           let T1_ast : PreAST n b := (PreAST.mk T1 wf1);
           let T2_ast : PreAST n b := (PreAST.mk T2 wf2);
@@ -216,7 +216,7 @@ namespace AST
           | .success h1, .failure h2 => .failure (.seq_SF (h := g) h1 h2)
           | .success h1, .undefined h2s h2f => .undefined (by intro h; cases h; contradiction;) (by intro h; cases h; {apply absurd _ (h1.ne_failure); assumption}; {apply absurd _ h2f; assumption})
           | .failure h1, _ => .failure (.seq_F (T2 := T2_ast) (h := g) h1)
-      | .prior s e T1 T2 => match wf_T with
+      | .prior s e T1 T2 => match valid_T with
         | .prior wf1 wf2 ns =>
           let T1_ast : PreAST n b := (PreAST.mk T1 wf1);
           let T2_ast : PreAST n b := (PreAST.mk T2 wf2);
@@ -227,7 +227,7 @@ namespace AST
           | .failure h1, .success h2 => .success (.prior_FS (h := g) h1 h2)
           | .failure h1, .failure h2 => .failure (.prior (h := g) h1 h2)
           | .failure h1, .undefined h2s h2f => .undefined (by intro h; cases h; apply absurd _ (h1.ne_success); assumption; apply absurd _ h2s; assumption) (by intro h; cases h; apply absurd _ h2f; assumption)
-      | .star s e T0 TS => match wf_T with
+      | .star s e T0 TS => match valid_T with
         | .star wf0 wfS n0 nS =>
           let T0_ast : PreAST n b := (PreAST.mk T0 wf0);
           let TS_ast : PreAST n b := (PreAST.mk TS wfS);
@@ -242,7 +242,7 @@ namespace AST
           | .success h0, .success hs => .success (.star_SS (TS := TS_ast) (h1 := g1) (h2 := g2) h0 hs)
           | .success h0, .failure hs => .undefined (by intro h; cases h; apply absurd _ h0.ne_failure; assumption; apply absurd _ hs.ne_success; assumption) (by intro h; cases h;)
           | .success h0, .undefined h2s h2f => .undefined (by intro h; cases h; apply absurd _ h0.ne_failure; assumption; contradiction) (by intro h; cases h;)
-      | .notP s e sub_T => match wf_T with
+      | .notP s e sub_T => match valid_T with
         | .notP wf ns =>
           let T_ast : PreAST n b := (PreAST.mk sub_T wf);
           have g : (¬SkipPreAST' T_ast.T) := by simp; exact ns;
@@ -250,5 +250,6 @@ namespace AST
           | .success h => .failure (.notP (h := g) h)
           | .failure h => .success (.notP (h := g) h)
           | .undefined hs hf => .undefined (by intro h; cases h; contradiction) (by intro h; cases h; contradiction)
+
 
 end AST
