@@ -50,6 +50,13 @@ namespace Fin
     rw [inbound_succ]; simp;
     rw [inbound_pred]; simp;
     rw [Nat.succ_pred hne];
+  
+  theorem lt_from_inbound_succ : inbound_succ a hne = b → a < b := by
+    intro h;
+    rw [inbound_succ] at h;
+    apply Nat.lt_of_succ_le;
+    apply Nat.le_of_eq;
+    exact Fin.val_eq_of_eq h;
 
   theorem extended_add_eq_add_right : ∀ {a1 a2 : Fin m} {b : Fin n}, a1 = a2 ↔ Fin.extended_add a1 b = Fin.extended_add a2 b := by
     intro a1 a2 b
