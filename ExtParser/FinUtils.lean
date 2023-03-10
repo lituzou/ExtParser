@@ -51,8 +51,8 @@ namespace Fin
     rw [inbound_pred]; simp;
     rw [Nat.succ_pred hne];
   
-  theorem lt_from_inbound_succ : inbound_succ a hne = b → a < b := by
-    intro h;
+  theorem lt_from_inbound_succ : ∀ {a b : Fin n} {hne : a.val.succ ≠ n}, inbound_succ a hne = b → a < b := by
+    intro a b hne h;
     rw [inbound_succ] at h;
     apply Nat.lt_of_succ_le;
     apply Nat.le_of_eq;
