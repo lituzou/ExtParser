@@ -153,4 +153,10 @@ namespace Fin
     intro a b h hab;
     rw [Fin.cast];
     exact hab;
+
+  def max (h : n > 0) : Fin n := Fin.mk n.pred (Nat.pred_lt' h)
+  def min (h : n > 0) : Fin n := Fin.mk 0 h
+
+  def IsMax (x : Fin n) : Prop := x.val.succ = n
+  def IsMin (x : Fin n) : Prop := x.val = 0
 end Fin

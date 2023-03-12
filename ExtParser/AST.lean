@@ -82,9 +82,9 @@ namespace AST
     | notP : FailureAST T → SuccessAST (.notP s e T)
 
   inductive PreAST.FailureAST : PreAST n b → Prop where
-    | any : s = e → FailureAST (.any s e x)
+    | any : s = e → Fin.IsMax e → FailureAST (.any s e x)
     | terminal_mismatch : s.inbound_succ h = e → a ≠ x → FailureAST (.terminal s e a x)
-    | terminal_empty : s = e → FailureAST (.terminal s e a x)
+    | terminal_empty : s = e → Fin.IsMax e → FailureAST (.terminal s e a x)
     | nonTerminal : FailureAST T → FailureAST (.nonTerminal s e A T)
     | seq_F : FailureAST T1 → FailureAST (.seq s e T1 T2)
     | seq_SF : SuccessAST T1 → FailureAST T2 → FailureAST (.seq s e T1 T2)
