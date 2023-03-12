@@ -1,7 +1,7 @@
-import ExtParser.CoreParser
+import ExtParser.Grammar
 
 namespace AST
-  open CoreParser
+  open Grammar
 
   inductive PreAST (n : Nat) (b : Nat) where
     | skip (s e : Fin b) (G : PEG n)

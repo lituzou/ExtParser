@@ -1,7 +1,7 @@
 import ExtParser.AST
 namespace Parsing
   open AST
-  open CoreParser
+  open Grammar
 
   inductive PreAST.TrueToGrammar : PreAST n b → GProd n → PEG n → Prop where
     | skip : TrueToGrammar (.skip s e G) Pexp G

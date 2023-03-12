@@ -1,7 +1,7 @@
 import Mathlib.Init.Function
 import ExtParser.FinUtils
 
-namespace CoreParser
+namespace Grammar
 
   inductive PEG (n : Nat) where
     | ε
@@ -1233,4 +1233,4 @@ namespace CoreParser
       sorry
     }
   
-end CoreParser
+end Grammar
