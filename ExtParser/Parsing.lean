@@ -244,7 +244,7 @@ namespace Parsing
                             AST.TrueToGrammar T1 Pexp G → AST.TrueToGrammar T2 Pexp G → 
                             T1.start = T2.start → T1 = T2 := by
     intro (.mk T1 valid_T1 wf_T1) (.mk T2 valid_T2 wf_T2) inp G Pexp hi1 hi2 hg1 hg2 hstart;
-    cases T1 with
+    induction T1 generalizing T2 inp G with
     | skip _ _ _ => cases wf_T1;
     | ε s1 e1 => cases T2 with
       | skip _ _ _ => cases wf_T2;
@@ -283,7 +283,7 @@ namespace Parsing
             rw [←h1, hstart, Fin.IsMax] at hb1;
             contradiction;
           }
-        | .any (Or.inr (.any h1 hb1)), .any (Or.inr (.any h2 hb2)) =>
+        | .any (Or.inr (.any h1 _)), .any (Or.inr (.any h2 _)) =>
           {
             rw [←h1, hstart, h2];
           }
@@ -315,7 +315,7 @@ namespace Parsing
             rw [hx] at g1;
             contradiction;
           }
-        | .terminal (Or.inl (.terminal h1 g1)), .terminal (Or.inr (.terminal_empty h2 hb2)) =>
+        | .terminal (Or.inl (.terminal _ _)), .terminal (Or.inr (.terminal_empty h2 hb2)) =>
           {
             simp [←h2, ←hstart, Fin.IsMax] at hb2;
             contradiction;
@@ -324,61 +324,52 @@ namespace Parsing
           {
             rw [hx] at g1; contradiction;
           }
-        | .terminal (Or.inr (.terminal_mismatch h1 g1)), .terminal (Or.inr (.terminal_mismatch h2 g2)) =>
+        | .terminal (Or.inr (.terminal_mismatch h1 _)), .terminal (Or.inr (.terminal_mismatch h2 _)) =>
           {
             apply Fin.eq_of_val_eq;
             simp [←Fin.val_eq_of_eq h1, ←Fin.val_eq_of_eq h2, Fin.inbound_succ];
             exact Fin.val_eq_of_eq hstart;
           }
-        | .terminal (Or.inr (.terminal_mismatch h1 g1)), .terminal (Or.inr (.terminal_empty h2 hb2)) =>
+        | .terminal (Or.inr (.terminal_mismatch _ _)), .terminal (Or.inr (.terminal_empty h2 hb2)) =>
           {
             simp [←h2, ←hstart, Fin.IsMax] at hb2;
             contradiction;
           }
-        | .terminal (Or.inr (.terminal_empty h1 hb1)), .terminal (Or.inl (.terminal h2 g2)) =>
+        | .terminal (Or.inr (.terminal_empty h1 hb1)), .terminal (Or.inl (.terminal _ _)) =>
           {
             simp [←h1, hstart, Fin.IsMax] at hb1;
             contradiction;
           }
-        | .terminal (Or.inr (.terminal_empty h1 hb1)), .terminal (Or.inr (.terminal_mismatch h2 g2)) =>
+        | .terminal (Or.inr (.terminal_empty h1 hb1)), .terminal (Or.inr (.terminal_mismatch _ _)) =>
           {
             simp [←h1, hstart, Fin.IsMax] at hb1;
             contradiction;
           }
-        | .terminal (Or.inr (.terminal_empty h1 hb1)), .terminal (Or.inr (.terminal_empty h2 hb2)) =>
+        | .terminal (Or.inr (.terminal_empty h1 _)), .terminal (Or.inr (.terminal_empty h2 _)) =>
           {
             simp [←h1, hstart, h2];
           }
       }
       | _ => cases hg1; cases hg2;
-    | nonTerminal s1 e1 A1 T1 => cases T2 with
+    | nonTerminal s1 e1 A1 T1 ih => cases T2 with
       | skip _ _ _ => cases wf_T2;
       | nonTerminal s2 e2 A2 T2 =>
       {
         simp [AST.start, PreAST.start] at hstart; simp [hstart];
         match wf_T1, wf_T2, valid_T1, valid_T2 with
         | .nonTerminal hss1 hee1 hwfT1, .nonTerminal hss2 hee2 hwfT2, .nonTerminal hvT1 _ , .nonTerminal hvT2 _ =>
+        {
+          cases hi1; cases hi2; cases hg1; cases hg2;
+          have g : AST.mk T1 hvT1 hwfT1 = AST.mk T2 hvT2 hwfT2 := by
           {
-            cases hi1; cases hi2; cases hg1; cases hg2;
-            have _ : (AST.mk T1 hvT1 hwfT1).size < (AST.mk (.nonTerminal s1 e1 A1 T1) valid_T1 wf_T1).size := by
-            {
-              simp [AST.size, PreAST.size]; apply Nat.lt_succ_self;
-            }
-            have g : AST.mk T1 hvT1 hwfT1 = AST.mk T2 hvT2 hwfT2 := by
-            {
-              apply unique_tree;
-              assumption;
-              assumption;
-              assumption;
-              assumption;
-              simp [AST.start, ←hss1, ←hss2, hstart];
-            }
-            cases g;
-            simp [hee1, hee2];
+            apply ih; assumption; assumption; assumption; assumption;
+            simp [AST.start, ←hss1, ←hss2, hstart];
           }
+          cases g; simp [hee1, hee2];
+        }
       }
       | _ => cases hg1; cases hg2;
-    | seq s1 e1 T11 T21 => cases T2 with
+    | seq s1 e1 T11 T21 ih1 ih2 => cases T2 with
       | skip _ _ _ => cases wf_T2;
       | seq s2 e2 T12 T22 =>
       {
@@ -390,17 +381,9 @@ namespace Parsing
             match hg1, hg2, valid_T1, valid_T2 with
             | .seq hg11 hg21, .seq hg12 hg22, .seq hv11 _ _, .seq hv12 _ _ =>
             {
-              have _ : (AST.mk T11 hv11 hwf11).size < (AST.mk (.seq s1 e1 T11 T21) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T11), Nat.add_assoc (PreAST.size T11 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T11 hv11 hwf11 = AST.mk T12 hv12 hwf12 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss11, ←hss12, hstart];
               }
               cases g1; simp;
@@ -415,19 +398,11 @@ namespace Parsing
           {
             cases hi1; cases hi2;
             match hg1, hg2, valid_T1, valid_T2 with
-            | .seq hg11 hg21, .seq hg12 hg22, .seq hv11 _ _, .seq hv12 _ _ =>
+            | .seq hg11 _, .seq hg12 _, .seq hv11 _ _, .seq hv12 _ _ =>
             {
-              have _ : (AST.mk T11 hv11 hwf11).size < (AST.mk (.seq s1 e1 T11 T21) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T11), Nat.add_assoc (PreAST.size T11 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T11 hv11 hwf11 = AST.mk T12 hv12 hwf12 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss11, ←hss12, hstart];
               }
               cases g1; simp;
@@ -438,19 +413,11 @@ namespace Parsing
           {
             cases hi1; cases hi2;
             match hg1, hg2, valid_T1, valid_T2 with
-            | .seq hg11 hg21, .seq hg12 hg22, .seq hv11 _ _, .seq hv12 _ _ =>
+            | .seq hg11 _, .seq hg12 _, .seq hv11 _ _, .seq hv12 _ _ =>
             {
-              have _ : (AST.mk T11 hv11 hwf11).size < (AST.mk (.seq s1 e1 T11 T21) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T11), Nat.add_assoc (PreAST.size T11 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T11 hv11 hwf11 = AST.mk T12 hv12 hwf12 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss11, ←hss12, hstart];
               }
               cases g1; simp;
@@ -463,32 +430,15 @@ namespace Parsing
             match hg1, hg2, valid_T1, valid_T2 with
             | .seq hg11 hg21, .seq hg12 hg22, .seq hv11 hv21 _, .seq hv12 hv22 _ =>
             {
-              have _ : (AST.mk T11 hv11 hwf11).size < (AST.mk (.seq s1 e1 T11 T21) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T11), Nat.add_assoc (PreAST.size T11 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T11 hv11 hwf11 = AST.mk T12 hv12 hwf12 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss11, ←hss12, hstart];
               }
               cases g1; simp;
-              have _ : (AST.mk T21 hv21 hwf21).size < (AST.mk (.seq s1 e1 T11 T21) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [Nat.add_comm (PreAST.size T11), ←Nat.add_zero (PreAST.size T21), Nat.add_assoc (PreAST.size T21 + 0)];
-                apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g2 : AST.mk T21 hv21 hwf21 = AST.mk T22 hv22 hwf22 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih2; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←he11s21, ←he12s22];
               }
               cases g2; simp;
@@ -497,7 +447,7 @@ namespace Parsing
           }
       }
       | _ => cases hg1; cases hg2;
-    | prior s1 e1 T11 T21 => cases T2 with
+    | prior s1 e1 T11 T21 ih1 ih2 => cases T2 with
       | skip _ _ _ => cases wf_T2;
       | prior s2 e2 T12 T22 =>
       {
@@ -509,31 +459,14 @@ namespace Parsing
             match hg1, hg2, valid_T1, valid_T2 with
             | .prior hg11 hg21, .prior hg12 hg22, .prior hv11 hv21 _, .prior hv12 hv22 _ =>
             {
-              have _ : (AST.mk T11 hv11 hwf11).size < (AST.mk (.prior s1 e1 T11 T21) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T11), Nat.add_assoc (PreAST.size T11 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T11 hv11 hwf11 = AST.mk T12 hv12 hwf12 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss11, ←hss12, hstart];
-              }
-              have _ : (AST.mk T21 hv21 hwf21).size < (AST.mk (.prior s1 e1 T11 T21) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [Nat.add_comm (PreAST.size T11), ←Nat.add_zero (PreAST.size T21), Nat.add_assoc (PreAST.size T21 + 0)];
-                apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
               }
               have g2 : AST.mk T21 hv21 hwf21 = AST.mk T22 hv22 hwf22 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih2; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss21, ←hss22, hstart];
               }
               cases g1; cases g2; simp;
@@ -544,19 +477,11 @@ namespace Parsing
           {
             cases hi1; cases hi2;
             match hg1, hg2, valid_T1, valid_T2 with
-            | .prior hg11 hg21, .prior hg12 hg22, .prior hv11 hv21 _, .prior hv12 hv22 _ =>
+            | .prior hg11 _, .prior hg12 _, .prior hv11 _ _, .prior hv12 _ _ =>
             {
-              have _ : (AST.mk T11 hv11 hwf11).size < (AST.mk (.prior s1 e1 T11 T21) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T11), Nat.add_assoc (PreAST.size T11 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T11 hv11 hwf11 = AST.mk T12 hv12 hwf12 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss11, ←hss12, hstart];
               }
               cases g1; simp;
@@ -567,19 +492,11 @@ namespace Parsing
           {
             cases hi1; cases hi2;
             match hg1, hg2, valid_T1, valid_T2 with
-            | .prior hg11 hg21, .prior hg12 hg22, .prior hv11 hv21 _, .prior hv12 hv22 _ =>
+            | .prior hg11 _, .prior hg12 _, .prior hv11 _ _, .prior hv12 _ _ =>
             {
-              have _ : (AST.mk T11 hv11 hwf11).size < (AST.mk (.prior s1 e1 T11 T21) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T11), Nat.add_assoc (PreAST.size T11 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T11 hv11 hwf11 = AST.mk T12 hv12 hwf12 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss11, ←hss12, hstart];
               }
               cases g1; simp;
@@ -592,17 +509,9 @@ namespace Parsing
             match hg1, hg2, valid_T1, valid_T2 with
             | .prior hg11 hg21, .prior hg12 hg22, .prior hv11 hv21 _, .prior hv12 hv22 _ =>
             {
-              have _ : (AST.mk T11 hv11 hwf11).size < (AST.mk (.prior s1 e1 T11 T21) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T11), Nat.add_assoc (PreAST.size T11 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T11 hv11 hwf11 = AST.mk T12 hv12 hwf12 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss11, ←hss12, hstart];
               }
               cases g1; simp;
@@ -615,7 +524,7 @@ namespace Parsing
           }
       }
       | _ => cases hg1; cases hg2;
-    | star s1 e1 T01 TS1 => cases T2 with
+    | star s1 e1 T01 TS1 ih1 ih2 => cases T2 with
       | skip _ _ _ => cases wf_T2;
       | star s2 e2 T02 TS2 =>
       {
@@ -627,17 +536,9 @@ namespace Parsing
             match hg1, hg2, valid_T1, valid_T2 with
             | .star hg01 hgS1, .star hg02 hgS2, .star hv01 hvS1 _ _, .star hv02 hvS2 _ _ =>
             {
-              have _ : (AST.mk T01 hv01 hwf01).size < (AST.mk (.star s1 e1 T01 TS1) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T01), Nat.add_assoc (PreAST.size T01 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T01 hv01 hwf01 = AST.mk T02 hv02 hwf02 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss01, ←hss02, hstart];
               }
               cases g1; simp;
@@ -652,19 +553,11 @@ namespace Parsing
           {
             cases hi1; cases hi2;
             match hg1, hg2, valid_T1, valid_T2 with
-            | .star hg01 hgS1, .star hg02 hgS2, .star hv01 hvS1 _ _, .star hv02 hvS2 _ _ =>
+            | .star hg01 _, .star hg02 _, .star hv01 _ _ _, .star hv02 _ _ _ =>
             {
-              have _ : (AST.mk T01 hv01 hwf01).size < (AST.mk (.star s1 e1 T01 TS1) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T01), Nat.add_assoc (PreAST.size T01 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T01 hv01 hwf01 = AST.mk T02 hv02 hwf02 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss01, ←hss02, hstart];
               }
               cases g1; simp;
@@ -675,19 +568,11 @@ namespace Parsing
           {
             cases hi1; cases hi2;
             match hg1, hg2, valid_T1, valid_T2 with
-            | .star hg01 hgS1, .star hg02 hgS2, .star hv01 hvS1 _ _, .star hv02 hvS2 _ _ =>
+            | .star hg01 _, .star hg02 _, .star hv01 _ _ _, .star hv02 _ _ _ =>
             {
-              have _ : (AST.mk T01 hv01 hwf01).size < (AST.mk (.star s1 e1 T01 TS1) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T01), Nat.add_assoc (PreAST.size T01 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T01 hv01 hwf01 = AST.mk T02 hv02 hwf02 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss01, ←hss02, hstart];
               }
               cases g1; simp;
@@ -700,32 +585,15 @@ namespace Parsing
             match hg1, hg2, valid_T1, valid_T2 with
             | .star hg01 hgS1, .star hg02 hgS2, .star hv01 hvS1 _ _, .star hv02 hvS2 _ _ =>
             {
-              have _ : (AST.mk T01 hv01 hwf01).size < (AST.mk (.star s1 e1 T01 TS1) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [←Nat.add_zero (PreAST.size T01), Nat.add_assoc (PreAST.size T01 + 0)]; apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g1 : AST.mk T01 hv01 hwf01 = AST.mk T02 hv02 hwf02 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih1; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←hss01, ←hss02, hstart];
               }
               cases g1; simp;
-              have _ : (AST.mk TS1 hvS1 hwfS1).size < (AST.mk (.star s1 e1 T01 TS1) valid_T1 wf_T1).size := by
-              {
-                simp [AST.size, PreAST.size]; rw [Nat.add_comm (PreAST.size T01), ←Nat.add_zero (PreAST.size TS1), Nat.add_assoc (PreAST.size TS1 + 0)];
-                apply Nat.add_lt_add_left; apply Nat.zero_lt_succ;
-              }
               have g2 : AST.mk TS1 hvS1 hwfS1 = AST.mk TS2 hvS2 hwfS2 := by
               {
-                apply unique_tree;
-                assumption;
-                assumption;
-                assumption;
-                assumption;
+                apply ih2; assumption; assumption; assumption; assumption;
                 simp [AST.start, ←he01sS1, ←he02sS2];
               }
               cases g2; simp;
@@ -734,7 +602,7 @@ namespace Parsing
           }
       }
       | _ => cases hg1; cases hg2;
-    | notP s1 e1 T1 => cases T2 with
+    | notP s1 e1 T1 ih => cases T2 with
       | skip _ _ _ => cases wf_T2;
       | notP s2 e2 T2 =>
       {
@@ -742,18 +610,10 @@ namespace Parsing
         match wf_T1, wf_T2, valid_T1, valid_T2 with
         | .notP hse1 hssT1 hwfT1, .notP hse2 hssT2 hwfT2, .notP hv1 _, .notP hv2 _ =>
         {
-          have _ : (AST.mk T1 hv1 hwfT1).size < (AST.mk (.notP s1 e1 T1) valid_T1 wf_T1).size := by
-          {
-            simp [AST.size, PreAST.size]; apply Nat.lt_succ_self;
-          }
           have g : AST.mk T1 hv1 hwfT1 = AST.mk T2 hv2 hwfT2 := by
           {
             cases hi1; cases hi2; cases hg1; cases hg2;
-            apply unique_tree;
-            assumption;
-            assumption;
-            assumption;
-            assumption;
+            apply ih; assumption; assumption; assumption; assumption;
             simp [AST.start, ←hssT1, ←hssT2, hstart];
           }
           cases g; simp;
@@ -761,9 +621,5 @@ namespace Parsing
         }
       }
       | _ => cases hg1; cases hg2;
-  termination_by AST.unique_tree _ _ T1 => T1.size
-  decreasing_by sorry
-
-
 
 end Parsing

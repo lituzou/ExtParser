@@ -16,6 +16,32 @@ namespace Grammar
 
   open PEG
 
+  inductive PEG.le : PEG n → PEG n → Prop where
+    | refl        : le p p
+    | seq_left    : le e p1 → le e (.seq p1 p2)
+    | seq_right   : le e p2 → le e (.seq p1 p2)
+    | prior_left  : le e p1 → le e (.prior p1 p2)
+    | prior_right : le e p2 → le e (.prior p1 p2)
+    | star        : le e p → le e (.star p)
+    | notP        : le e p → le e (.notP p)
+  
+  
+  instance : LE (PEG n) where
+    le := PEG.le
+  
+  theorem PEG.le_refl (G : PEG n) : G ≤ G := by exact .refl;
+
+  theorem PEG.le_trans {G1 G2 G3 : PEG n} : G1 ≤ G2 → G2 ≤ G3 → G1 ≤ G3 := by
+    intro h g;
+    match g with
+    | .refl => exact h;
+    | .seq_left g => apply le.seq_left; exact le_trans h g;
+    | .seq_right g => apply le.seq_right; exact le_trans h g;
+    | .prior_left g => apply le.prior_left; exact le_trans h g;
+    | .prior_right g => apply le.prior_right; exact le_trans h g;
+    | .star g => apply le.star; exact le_trans h g;
+    | .notP g => apply le.notP; exact le_trans h g;
+
   def stringPEG {n : Nat} (cs : List Char) : PEG n :=
     match cs with
       | [] => ε
