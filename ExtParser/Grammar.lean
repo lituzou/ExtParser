@@ -1238,9 +1238,14 @@ namespace Grammar
     | found h => found (PatternWF_GProd.from_partial h)
     | unknown => unknown 
 
-  structure WellformedGrammar (Pexp : GProd n) where
+  structure Wellformed_GProd (n : Nat) where
+    Pexp : GProd n
+    p : Fin n → Fin n
+    σ : Bijective p 
     structural : StructuralWF_GProd Pexp
-    pattern : ∃ σ : Bijective p, PatternWF_GProd Pexp σ
+    pattern : PatternWF_GProd Pexp σ
+
+  def Wellformed_GProd.get (Pexp : Wellformed_GProd n) (i : Fin n) : PEG n := Pexp.Pexp.f i
 
   def mapping_from_list (l : List (Fin n)) (length_eq : l.length = n) : Fin n → Fin n :=
     fun i => l.get (Fin.cast (Eq.symm length_eq) i)
