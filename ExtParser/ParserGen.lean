@@ -7,6 +7,7 @@ namespace ParserGen
   open Parsing
   open Function
 
+  -- Overall output of the parser with relevant properties
   structure ParserOutput (WFPexp : Wellformed_GProd n) (A : Fin n) (G : PEG n) (inp : Input b) (s : Fin b) (sA : Fin b) where
     is_subterm : G ≤ WFPexp.get A
     sA_le_s : sA ≤ s
@@ -89,6 +90,9 @@ namespace ParserGen
         (fun hs _ => by apply absurd hs; apply PreAST.FailureAST.ne_success; constructor; apply PreAST.FailureAST.terminal_empty; rfl; exact h)
         (fun hf => by simp [getPropF, g_props]; constructor; rfl)
   
+  -- Parsing function for non-extensible grammar
+  -- TODO: might need to be rewritten when the Grammar.lean is refactored.
+  -- TODO: complete this
   def parse (WFPexp : Wellformed_GProd n) (A : Fin n) (G : PEG n) 
             (is_subterm : G ≤ WFPexp.get A) (inp : Input b) (s : Fin b) (sA : Fin b) (sA_le_s : sA ≤ s) 
             (lt_or_pattern_wf : sA < s ∨ PatternWF WFPexp.Pexp WFPexp.σ A G)

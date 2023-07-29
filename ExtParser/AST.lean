@@ -1,5 +1,6 @@
 import ExtParser.Grammar
 
+-- Definition and properties of AST
 namespace AST
   open Grammar
 

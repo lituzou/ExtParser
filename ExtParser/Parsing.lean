@@ -1,4 +1,8 @@
 import ExtParser.AST
+
+
+-- This file proves the definitions of PEG and AST are consistent.
+-- It also states the requirements for parsing consistently.
 namespace Parsing
   open AST
   open Grammar

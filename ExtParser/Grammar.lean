@@ -1,8 +1,14 @@
 import Mathlib.Init.Function
 import ExtParser.FinUtils
 
+-- this file contains the basic building block of the PEG expression and 
+-- the properties of PEG expression to assess the wellformness of the grammar.
+-- This file needs further work and rewrite
 namespace Grammar
 
+  -- PEG expression
+  -- TODO: consider using Finite Set of DecidableEq type as the set of non-terminals instead of Fin n.
+  -- FiniteSet should exists somewhere in MathLib4.
   inductive PEG (n : Nat) where
     | ε
     | any
@@ -48,11 +54,17 @@ namespace Grammar
       | c :: cs => seq (terminal c) (stringPEG cs)
 
   -- Grammar Production Rule
+  -- TODO: If PEG definition is changed to FiniteSet, we must require that set to be non-empty
   structure GProd (n : Nat) where
     pos_n : 0 < n
     f : Fin n → PEG n 
 
   -- Maybe Type for known and unknown properties
+  -- Here, Maybe type is mainly used to store the state of computing basic properties of grammar.
+  -- We do not add not_found constructor for this type because 
+  -- it may not be possible to prove some properties exists within finite iterations.
+  -- However, we would later prove that if the grammar is pattern wellformed, 
+  -- we will know whether a property exists for an expression within finite iterations.
   inductive Maybe (p : α → Prop) (a : α) where
     | found : p a → Maybe p a
     | unknown
@@ -182,6 +194,7 @@ namespace Grammar
         unknown
       )
 
+  -- Some basic properties of Maybe type
   inductive Maybe.le : Maybe p a → Maybe p a → Prop where
     | lhs_unknown : ∀ {p : α → Prop} {a : α} {mr : Maybe p a}, Maybe.le unknown mr
     | all_found : ∀ {p : α → Prop} {a : α}, (l r : p a) → Maybe.le (found l) (found r)
@@ -284,7 +297,7 @@ namespace Grammar
       cases hyx with
       | mk fyx => apply PropsTriple.eq_of_le_le (fxy i) (fyx i);
   
-
+  -- This helper theorem shows known properties of seq operator would not be decreasing over compute iterations
   theorem g_props_growth_seq : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} {e1 e2 : PEG n}, g_props e1 P ≤ g_props e1 Q → g_props e2 P ≤ g_props e2 Q → g_props (.seq e1 e2) P ≤ g_props (.seq e1 e2) Q := by
     intros Pexp P Q e1 e2 e1_growth e2_growth
     cases e1_growth with
@@ -335,6 +348,7 @@ namespace Grammar
           }
         }
 
+  -- This helper theorem shows known properties of non-terminal operator would not be decreasing over compute iterations
   theorem g_props_growth_nonterminal : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} {vn} , P ≤ Q → g_props (.nonTerminal vn) P ≤ g_props (.nonTerminal vn) Q := by
     intros Pexp P Q vn hpq
     have (PropsTriplePred.le.mk fpq) := hpq
@@ -359,6 +373,7 @@ namespace Grammar
         }
       }
 
+  -- This helper theorem shows known properties of priorised choice operator would not be decreasing over compute iterations
   theorem g_props_growth_prior : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} {e1 e2 : PEG n}, g_props e1 P ≤ g_props e1 Q → g_props e2 P ≤ g_props e2 Q  → g_props (.prior e1 e2) P ≤ g_props (.prior e1 e2) Q := by
     intros Pexp P Q e1 e2 e1_growth e2_growth
     cases e1_growth with
@@ -389,6 +404,7 @@ namespace Grammar
           }
         }
 
+  -- This helper theorem shows known properties of greedy match operator would not be decreasing over compute iterations
   theorem g_props_growth_star : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} {e : PEG n}, g_props e P ≤ g_props e Q → g_props (.star e) P ≤ g_props (.star e) Q := by
     intros Pexp P Q e e_growth
     cases e_growth with
@@ -410,6 +426,7 @@ namespace Grammar
         }
       }
 
+  -- This helper theorem shows known properties of not-predicate operator would not be decreasing over compute iterations
   theorem g_props_growth_notP : ∀ {Pexp : GProd n} {P Q : PropsTriplePred Pexp} {e : PEG n}, g_props e P ≤ g_props e Q → g_props (.notP e) P ≤ g_props (.notP e) Q := by
     intros Pexp P Q e e_growth
     cases e_growth with
@@ -433,6 +450,7 @@ namespace Grammar
         }
       }
 
+  -- This theorem shows the known properties of any PEG expression would not be decreasing over compute iterations
   theorem g_props_growth : ∀ {Pexp : GProd n} {G : PEG n} {P Q : PropsTriplePred Pexp}, P ≤ Q → g_props G P ≤ g_props G Q := by
     intro Pexp G P Q hpq
     cases G with
@@ -463,6 +481,8 @@ namespace Grammar
           exact g_props_growth_notP e_growth
         }
 
+  -- CoherentPred indicates the current state of predicates must not contradict over iteration of property computation
+  -- i.e. the knowledge should not decrease in the first place
   structure CoherentPred (Pexp : GProd n) where
     pred : PropsTriplePred Pexp
     coherent : ∀ (i : Fin n), pred i ≤ g_props (Pexp.f i) pred
@@ -481,6 +501,8 @@ namespace Grammar
       | mk yp yc =>
         cases hxy; cases hyx; simp_all; apply PropsTriplePred.eq_of_le_le <;> constructor <;> trivial;
 
+  -- It follows that if the current predicates are coherent, then after one iteration of computation,
+  -- the result predicates are still coherent
   def g_extend {Pexp : GProd n} (a : Fin n) (P : CoherentPred Pexp) : CoherentPred Pexp :=
     {
       pred := fun b =>  match Fin.decEq a b with
@@ -584,6 +606,8 @@ namespace Grammar
         apply recompute_le_recompute_zero;
   termination_by recompute_le_recompute_zero a P => a.val
   
+  -- Since the known properties are non-decreasing, we expect the number of known properties will be fixed after finite iteration.
+  -- We therefore define a property called Fixpoint for this.
   structure Fixpoint (Pexp : GProd n) where
     coherent_pred : CoherentPred Pexp
     isFixed : recompute_props (Fin.mk 0 Pexp.pos_n) coherent_pred = coherent_pred
@@ -743,6 +767,9 @@ namespace Grammar
       count_found_helper P (Fin.inbound_pred i h) (Fin.cast c new_res)
   termination_by count_found_helper P i res => i
 
+  -- This function is used to count the number of known properties.
+  -- This is later used when we wish to prove the growth of known properties over compute iterations.
+  -- TODO: For Finite Set non-terminal, we need to replace n with the cardinality of the set.
   def PropsTriplePred.count_found {Pexp : GProd n} (P : PropsTriplePred Pexp) : Fin (3*n+1) :=
     have max_i : Fin n := Fin.mk (n-1) (by apply Nat.sub_lt Pexp.pos_n; trivial);
     have isLt : 0 < 3 * (n - max_i.val) - 2 := by
@@ -1021,6 +1048,7 @@ namespace Grammar
     exact hpq;
     exact hcount;
 
+  -- After all necessary theorems above, we can compute the fixpoint for known properties.
   def compute_props {n : Nat} {Pexp : GProd n} (P : CoherentPred Pexp) : Fixpoint Pexp :=
     let fin_zero : Fin n := Fin.mk 0 Pexp.pos_n;
     let new_P : CoherentPred Pexp := recompute_props fin_zero P;
@@ -1057,6 +1085,7 @@ namespace Grammar
       compute_props new_P
   termination_by compute_props n Pexp P => 3 * n + 1 - P.count_found
 
+  -- Helper function to get the properties from the fixpoint
   def GProd.get_props (Pexp : GProd n) : Fixpoint Pexp :=
     let unknownPred : CoherentPred Pexp := CoherentPred.mk (fun _ => (unknown, unknown, unknown)) (by intro i; constructor <;> simp <;> exact Maybe.le.lhs_unknown);
     compute_props unknownPred
@@ -1097,6 +1126,7 @@ namespace Grammar
     match k with
     | mk h _ => h
 
+  -- This define the structure wellformness of a PEG expression with respect to the grammar
   inductive StructuralWF (Pexp : GProd n) : PEG n → Prop where
     | ε : StructuralWF Pexp ε
     | any : StructuralWF Pexp any
@@ -1166,6 +1196,7 @@ namespace Grammar
 
   open Function
 
+  -- This define the pattern wellformness of a PEG expression with respect to the grammar
   inductive PatternWF {p : Fin n → Fin n} (Pexp : GProd n) (σ : Bijective p) (A : Fin n) : PEG n → Prop where
     | ε : PatternWF Pexp σ A ε
     | any : PatternWF Pexp σ A any
@@ -1238,6 +1269,7 @@ namespace Grammar
     | found h => found (PatternWF_GProd.from_partial h)
     | unknown => unknown 
 
+  -- Requirement for wellformed grammar
   structure Wellformed_GProd (n : Nat) where
     Pexp : GProd n
     p : Fin n → Fin n
@@ -1263,5 +1295,13 @@ namespace Grammar
     {
       sorry
     }
+  
+  -- These three theorems are essential to prove all unknown properties for pattern-wellformed grammar are never satisfiable.
+  -- This is important as it ensures the properties of pattern-wellformed grammar are decidable (which differs from Maybe type).
+  -- TODO: Prove these. I may need to read the relevant proofs of graph theory in MathLib. I think it might be quite complicated (Please help).
+  -- ESSENTIAL FOR PARSING
+  theorem PatternWF_GProd.decidable_propF {p : Fin n → Fin n} {σ : Bijective p} (pattern : PatternWF_GProd Pexp σ) (G : PEG n) : Decidable (PropF Pexp G) := sorry
+  theorem PatternWF_GProd.decidable_prop0 {p : Fin n → Fin n} {σ : Bijective p} (pattern : PatternWF_GProd Pexp σ) (G : PEG n) : Decidable (Prop0 Pexp G) := sorry
+  theorem PatternWF_GProd.decidable_propS {p : Fin n → Fin n} {σ : Bijective p} (pattern : PatternWF_GProd Pexp σ) (G : PEG n) : Decidable (PropS Pexp G) := sorry
   
 end Grammar
